@@ -71,7 +71,7 @@ struct ContactsView: View {
     private var contactsList: some View {
         List(filtered) { contact in
             ContactRowView(contact: contact)
-                .listRowBackground(Theme.Colors.background)
+                .listRowBackground(Theme.Colors.surface)
                 .listRowSeparatorTint(Theme.Colors.border)
         }
         .listStyle(.plain)

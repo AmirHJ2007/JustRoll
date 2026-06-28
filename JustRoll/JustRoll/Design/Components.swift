@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Primary button (white pill, olive text — readable on any olive background)
+
 struct RollButton: View {
     let title: String
     var isLoading: Bool = false
@@ -9,8 +11,7 @@ struct RollButton: View {
         Button(action: action) {
             Group {
                 if isLoading {
-                    ProgressView()
-                        .tint(Theme.Colors.background)
+                    ProgressView().tint(Theme.Colors.background)
                 } else {
                     Text(title)
                         .font(Theme.Typography.label)
@@ -25,6 +26,8 @@ struct RollButton: View {
     }
 }
 
+// MARK: - Danger button (coral outline — for leave/end actions)
+
 struct DangerButton: View {
     let title: String
     let action: () -> Void
@@ -35,12 +38,14 @@ struct DangerButton: View {
                 .font(Theme.Typography.label)
                 .foregroundColor(Theme.Colors.danger)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .background(Theme.Colors.surface)
+                .background(Theme.Colors.background.opacity(0.3))
                 .clipShape(Capsule())
-                .overlay(Capsule().stroke(Theme.Colors.danger, lineWidth: 0.5))
+                .overlay(Capsule().stroke(Theme.Colors.danger, lineWidth: 1))
         }
     }
 }
+
+// MARK: - Active chip (lighter olive badge)
 
 struct ActiveChip: View {
     let label: String
@@ -56,6 +61,8 @@ struct ActiveChip: View {
     }
 }
 
+// MARK: - Avatar (lighter olive circle with white initial)
+
 struct AvatarView: View {
     let name: String
     var size: CGFloat = 44
@@ -69,17 +76,19 @@ struct AvatarView: View {
             .overlay(
                 Text(initial)
                     .font(.system(size: size * 0.4, weight: .semibold))
-                    .foregroundColor(Theme.Colors.accent)
+                    .foregroundColor(Theme.Colors.textPrimary)
             )
     }
 }
+
+// MARK: - Card (medium olive surface — visibly elevated above the deep page bg)
 
 struct CardView<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
         content
-            .background(Theme.Colors.background)
+            .background(Theme.Colors.surface)   // medium olive — NOT background
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.card)
@@ -88,13 +97,15 @@ struct CardView<Content: View>: View {
     }
 }
 
+// MARK: - Text field (sunken deep-olive input on medium-olive card)
+
 struct ThemedTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .font(Theme.Typography.body)
             .foregroundColor(Theme.Colors.textPrimary)
             .padding(Theme.Spacing.md)
-            .background(Theme.Colors.surface)
+            .background(Theme.Colors.background)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.control)
@@ -111,6 +122,12 @@ struct ThemedTextFieldStyle: TextFieldStyle {
         HStack(spacing: Theme.Spacing.sm) {
             ActiveChip(label: "Active")
             AvatarView(name: "Sara")
+        }
+        CardView {
+            Text("Sample card")
+                .font(Theme.Typography.label)
+                .foregroundColor(Theme.Colors.textPrimary)
+                .padding(Theme.Spacing.lg)
         }
     }
     .padding(Theme.Spacing.lg)

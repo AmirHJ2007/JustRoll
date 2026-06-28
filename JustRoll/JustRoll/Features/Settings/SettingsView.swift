@@ -16,7 +16,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Theme.Colors.surface.ignoresSafeArea())
+            .background(Theme.Colors.background.ignoresSafeArea())
         }
     }
 
@@ -27,6 +27,7 @@ struct SettingsView: View {
             settingsRow(icon: "person.circle", label: "Profile", value: "Amir")
             settingsRow(icon: "envelope",      label: "Email",   value: "amir@example.com")
         }
+        .listRowBackground(Theme.Colors.surface)
     }
 
     private var subscriptionSection: some View {
@@ -38,12 +39,12 @@ struct SettingsView: View {
                         .foregroundColor(Theme.Colors.textPrimary)
                 } icon: {
                     Image(systemName: "sparkles")
-                        .foregroundColor(Theme.Colors.accent)
+                        .foregroundColor(Theme.Colors.accentTint)
                 }
                 Spacer()
                 Text("28 days left")
                     .font(Theme.Typography.caption)
-                    .foregroundColor(Theme.Colors.accent)
+                    .foregroundColor(Theme.Colors.textSecondary)
             }
 
             HStack {
@@ -53,7 +54,7 @@ struct SettingsView: View {
                         .foregroundColor(Theme.Colors.textPrimary)
                 } icon: {
                     Image(systemName: "dollarsign.circle")
-                        .foregroundColor(Theme.Colors.accent)
+                        .foregroundColor(Theme.Colors.accentTint)
                 }
                 Spacer()
                 Text("$3/mo")
@@ -64,6 +65,7 @@ struct SettingsView: View {
                     .foregroundColor(Theme.Colors.textMuted)
             }
         }
+        .listRowBackground(Theme.Colors.surface)
     }
 
     private var notificationsSection: some View {
@@ -80,10 +82,10 @@ struct SettingsView: View {
                     }
                 } icon: {
                     Image(systemName: "bell.fill")
-                        .foregroundColor(Theme.Colors.accent)
+                        .foregroundColor(Theme.Colors.accentTint)
                 }
             }
-            .tint(Theme.Colors.accent)
+            .tint(Theme.Colors.accentTint)
 
             Toggle(isOn: $nudgesEnabled) {
                 Label {
@@ -97,10 +99,10 @@ struct SettingsView: View {
                     }
                 } icon: {
                     Image(systemName: "clock.fill")
-                        .foregroundColor(Theme.Colors.accent)
+                        .foregroundColor(Theme.Colors.accentTint)
                 }
             }
-            .tint(Theme.Colors.accent)
+            .tint(Theme.Colors.accentTint)
         }
     }
 
@@ -110,6 +112,7 @@ struct SettingsView: View {
             settingsRow(icon: "location",           label: "Location",             value: "While using")
             settingsRow(icon: "bell.badge",         label: "Push notifications",   value: "Allowed")
         }
+        .listRowBackground(Theme.Colors.surface)
     }
 
     private var signOutSection: some View {
@@ -121,6 +124,7 @@ struct SettingsView: View {
                     .font(Theme.Typography.label)
             }
         }
+        .listRowBackground(Theme.Colors.surface)
     }
 
     // MARK: - Helper
@@ -133,7 +137,7 @@ struct SettingsView: View {
                     .foregroundColor(Theme.Colors.textPrimary)
             } icon: {
                 Image(systemName: icon)
-                    .foregroundColor(Theme.Colors.accent)
+                    .foregroundColor(Theme.Colors.accentTint)
             }
             Spacer()
             Text(value)
