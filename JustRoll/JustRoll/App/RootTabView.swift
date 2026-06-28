@@ -19,38 +19,66 @@ struct RootTabView: View {
 
 // MARK: - Custom tab bar
 
+private struct TabItemData {
+    let label: String
+    let outline: String
+    let filled: String
+}
+
+private let tabItems: [TabItemData] = [
+    TabItemData(label: "Sessions", outline: "film.stack",  filled: "film.stack.fill"),
+    TabItemData(label: "Contacts", outline: "person.2",    filled: "person.2.fill"),
+    TabItemData(label: "Unsent",   outline: "paperplane",  filled: "paperplane.fill"),
+    TabItemData(label: "Settings", outline: "gearshape",   filled: "gearshape.fill"),
+]
+
 private struct CustomTabBar: View {
     @Binding var selectedTab: Int
 
-    private let items: [(label: String, outline: String, filled: String)] = [
-        ("Sessions", "film.stack",   "film.stack.fill"),
-        ("Contacts", "person.2",     "person.2.fill"),
-        ("Unsent",   "paperplane",   "paperplane.fill"),
-        ("Settings", "gearshape",    "gearshape.fill"),
-    ]
-
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(items.indices, id: \.self) { i in
-                let isSelected = selectedTab == i
-                Button {
+            ForEach(tabItems.indices, id: \.self) { i in
+                TabBarButton(item: tabItems[i], isSelected: selectedTab == i) {
                     selectedTab = i
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: isSelected ? items[i].filled : items[i].outline)
-                            .font(.system(size: 22))
-                        Text(items[i].label)
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundColor(isSelected ? Theme.Colors.accent : Theme.Colors.textMuted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 10)
                 }
             }
         }
-        .padding(.bottom, 20)
+        .padding(.horizontal, 12)
+        .padding(.top, 10)
+        .padding(.bottom, 24)
         .background(Theme.Colors.surface.ignoresSafeArea(edges: .bottom))
-        .overlay(Divider(), alignment: .top)
+        .overlay(alignment: .top) {
+            Divider()
+        }
+    }
+}
+
+private struct TabBarButton: View {
+    let item: TabItemData
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: isSelected ? item.filled : item.outline)
+                    .font(.system(size: 22))
+                    .frame(height: 24)
+                Text(item.label)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundColor(isSelected ? Theme.Colors.accent : Theme.Colors.textMuted)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Theme.Colors.accentTint)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.15), value: isSelected)
     }
 }
 
