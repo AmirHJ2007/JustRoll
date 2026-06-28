@@ -15,35 +15,112 @@ struct ContactsView: View {
         }
     }
 
+    private var connected: [Contact]    { filtered.filter(\.isConnected) }
+    private var notConnected: [Contact] { filtered.filter { !$0.isConnected } }
+
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    ProgressView()
-                } else if viewModel.contacts.isEmpty {
-                    emptyState
-                } else {
-                    contactsList
-                }
-            }
-            .navigationTitle("Contacts")
-            .background(Theme.Colors.background.ignoresSafeArea())
-            .themedNavBar()
-            .searchable(text: $searchText, prompt: "Find a friend")
-            .task { await viewModel.load() }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        viewModel.showAddSheet = true
-                    } label: {
-                        Image(systemName: "person.badge.plus")
-                            .foregroundColor(Theme.Colors.accent)
+            ZStack {
+                Theme.Colors.surface.ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    searchBar
+                    if viewModel.isLoading {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    } else if viewModel.contacts.isEmpty {
+                        emptyState
+                    } else {
+                        contactList
                     }
                 }
             }
-            .sheet(isPresented: $viewModel.showAddSheet) {
-                addFriendSheet
+            .navigationTitle("Contacts")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { viewModel.showAddSheet = true } label: {
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(Theme.Colors.accent)
+                            .padding(9)
+                            .background(Theme.Colors.accentTint)
+                            .clipShape(Circle())
+                    }
+                }
             }
+            .themedNavBar()
+            .task { await viewModel.load() }
+            .sheet(isPresented: $viewModel.showAddSheet) { addFriendSheet }
+        }
+    }
+
+    // MARK: - Search bar
+
+    private var searchBar: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15))
+                .foregroundColor(Theme.Colors.textMuted)
+            TextField("Find a friend", text: $searchText)
+                .font(Theme.Typography.body)
+                .foregroundColor(Theme.Colors.textPrimary)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(Theme.Colors.textMuted)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(Theme.Colors.background)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+    }
+
+    // MARK: - Contact list
+
+    private var contactList: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                if !connected.isEmpty {
+                    contactSection(
+                        title: "\(connected.count) \(connected.count == 1 ? "friend" : "friends") on JustRoll",
+                        contacts: connected
+                    )
+                }
+                if !notConnected.isEmpty {
+                    contactSection(title: "Invite them", contacts: notConnected)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private func contactSection(title: String, contacts: [Contact]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(Theme.Typography.caption)
+                .foregroundColor(Theme.Colors.textMuted)
+                .padding(.leading, 4)
+
+            VStack(spacing: 0) {
+                ForEach(Array(contacts.enumerated()), id: \.element.id) { idx, contact in
+                    ContactRowView(contact: contact)
+                        .padding(.horizontal, 16)
+
+                    if idx < contacts.count - 1 {
+                        Divider()
+                            .padding(.leading, 74)
+                    }
+                }
+            }
+            .background(Theme.Colors.background)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
     }
 
@@ -62,22 +139,12 @@ struct ContactsView: View {
                 Text("Add friends so they can join your rolls.")
                     .font(Theme.Typography.body)
                     .foregroundColor(Theme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
             }
+            RollButton(title: "Add a friend") { viewModel.showAddSheet = true }
+                .padding(.horizontal, Theme.Spacing.xl)
             Spacer()
         }
-    }
-
-    // MARK: - Contacts list
-
-    private var contactsList: some View {
-        List(filtered) { contact in
-            ContactRowView(contact: contact)
-                .listRowBackground(Theme.Colors.surface)
-                .listRowSeparatorTint(Theme.Colors.border)
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(Theme.Colors.background)
     }
 
     // MARK: - Add friend sheet
@@ -86,7 +153,6 @@ struct ContactsView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
                 Spacer().frame(height: Theme.Spacing.sm)
-
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     Text("Username")
                         .font(Theme.Typography.caption)
@@ -96,29 +162,22 @@ struct ContactsView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                 }
-
                 if let err = addError {
                     Text(err)
                         .font(Theme.Typography.caption)
                         .foregroundColor(Theme.Colors.danger)
                 }
-
                 RollButton(title: "Add friend", isLoading: isAdding) {
                     guard !addUsername.isEmpty else { return }
                     Task {
-                        isAdding = true
-                        addError = nil
+                        isAdding = true; addError = nil
                         do {
                             try await viewModel.addContact(username: addUsername)
-                            viewModel.showAddSheet = false
-                            addUsername = ""
-                        } catch {
-                            addError = error.localizedDescription
-                        }
+                            viewModel.showAddSheet = false; addUsername = ""
+                        } catch { addError = error.localizedDescription }
                         isAdding = false
                     }
                 }
-
                 Spacer()
             }
             .padding(Theme.Spacing.lg)
@@ -142,16 +201,16 @@ struct ContactRowView: View {
     let contact: Contact
 
     var body: some View {
-        HStack(spacing: Theme.Spacing.md) {
-            AvatarView(name: contact.name)
+        HStack(spacing: 14) {
+            AvatarView(name: contact.name, size: 46)
 
-            VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(contact.name)
                     .font(Theme.Typography.label)
                     .foregroundColor(Theme.Colors.textPrimary)
                 Text("@\(contact.username)")
                     .font(Theme.Typography.caption)
-                    .foregroundColor(Theme.Colors.textSecondary)
+                    .foregroundColor(Theme.Colors.textMuted)
             }
 
             Spacer()
@@ -162,15 +221,15 @@ struct ContactRowView: View {
                     .foregroundColor(Theme.Colors.accent)
             } else {
                 Text("Invite")
-                    .font(Theme.Typography.caption)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Theme.Colors.accent)
-                    .padding(.horizontal, Theme.Spacing.sm)
-                    .padding(.vertical, Theme.Spacing.xs)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
                     .background(Theme.Colors.accentTint)
                     .clipShape(Capsule())
             }
         }
-        .padding(.vertical, Theme.Spacing.xs)
+        .padding(.vertical, 13)
     }
 }
 
