@@ -7,25 +7,56 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A1000001 /* JustRollApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000010 /* JustRollApp.swift */; };
-		A1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000011 /* ContentView.swift */; };
-		A1000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000012 /* Assets.xcassets */; };
-		A1000030 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000031 /* Theme.swift */; };
-		A1000032 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000033 /* Components.swift */; };
+		AD000001 /* JustRollApp.swift in Sources */      = {isa = PBXBuildFile; fileRef = AC000001; };
+		AD000002 /* Assets.xcassets in Resources */      = {isa = PBXBuildFile; fileRef = AC000002; };
+		AD000010 /* RootTabView.swift in Sources */      = {isa = PBXBuildFile; fileRef = AC000010; };
+		AD000020 /* Theme.swift in Sources */            = {isa = PBXBuildFile; fileRef = AC000020; };
+		AD000021 /* Components.swift in Sources */       = {isa = PBXBuildFile; fileRef = AC000021; };
+		AD000030 /* User.swift in Sources */             = {isa = PBXBuildFile; fileRef = AC000030; };
+		AD000031 /* Session.swift in Sources */          = {isa = PBXBuildFile; fileRef = AC000031; };
+		AD000032 /* Contact.swift in Sources */          = {isa = PBXBuildFile; fileRef = AC000032; };
+		AD000033 /* PendingPhoto.swift in Sources */     = {isa = PBXBuildFile; fileRef = AC000033; };
+		AD000040 /* SupabaseServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000040; };
+		AD000041 /* MockSupabaseService.swift in Sources */     = {isa = PBXBuildFile; fileRef = AC000041; };
+		AD000050 /* SessionsView.swift in Sources */     = {isa = PBXBuildFile; fileRef = AC000050; };
+		AD000051 /* SessionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000051; };
+		AD000052 /* SessionRowView.swift in Sources */   = {isa = PBXBuildFile; fileRef = AC000052; };
+		AD000053 /* StartRollSheet.swift in Sources */   = {isa = PBXBuildFile; fileRef = AC000053; };
+		AD000060 /* ContactsView.swift in Sources */     = {isa = PBXBuildFile; fileRef = AC000060; };
+		AD000061 /* ContactsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000061; };
+		AD000070 /* UnsentView.swift in Sources */       = {isa = PBXBuildFile; fileRef = AC000070; };
+		AD000071 /* UnsentViewModel.swift in Sources */  = {isa = PBXBuildFile; fileRef = AC000071; };
+		AD000072 /* ReviewPhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000072; };
+		AD000080 /* SettingsView.swift in Sources */     = {isa = PBXBuildFile; fileRef = AC000080; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1000007 /* JustRoll.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JustRoll.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A1000010 /* JustRollApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JustRollApp.swift; sourceTree = "<group>"; };
-		A1000011 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A1000012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A1000031 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		A1000033 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
-		A1000034 /* Theme (group) */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Theme; sourceTree = "<group>"; };
+		AC000001 /* JustRollApp.swift */             = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JustRollApp.swift; sourceTree = "<group>"; };
+		AC000002 /* Assets.xcassets */               = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AC000010 /* RootTabView.swift */             = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootTabView.swift; sourceTree = "<group>"; };
+		AC000020 /* Theme.swift */                   = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		AC000021 /* Components.swift */              = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		AC000030 /* User.swift */                    = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
+		AC000031 /* Session.swift */                 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Session.swift; sourceTree = "<group>"; };
+		AC000032 /* Contact.swift */                 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Contact.swift; sourceTree = "<group>"; };
+		AC000033 /* PendingPhoto.swift */            = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingPhoto.swift; sourceTree = "<group>"; };
+		AC000040 /* SupabaseServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseServiceProtocol.swift; sourceTree = "<group>"; };
+		AC000041 /* MockSupabaseService.swift */     = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockSupabaseService.swift; sourceTree = "<group>"; };
+		AC000050 /* SessionsView.swift */            = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
+		AC000051 /* SessionsViewModel.swift */       = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsViewModel.swift; sourceTree = "<group>"; };
+		AC000052 /* SessionRowView.swift */          = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
+		AC000053 /* StartRollSheet.swift */          = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartRollSheet.swift; sourceTree = "<group>"; };
+		AC000060 /* ContactsView.swift */            = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsView.swift; sourceTree = "<group>"; };
+		AC000061 /* ContactsViewModel.swift */       = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactsViewModel.swift; sourceTree = "<group>"; };
+		AC000070 /* UnsentView.swift */              = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentView.swift; sourceTree = "<group>"; };
+		AC000071 /* UnsentViewModel.swift */         = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentViewModel.swift; sourceTree = "<group>"; };
+		AC000072 /* ReviewPhotoGridView.swift */     = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPhotoGridView.swift; sourceTree = "<group>"; };
+		AC000080 /* SettingsView.swift */            = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AA000004 /* JustRoll.app */                  = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JustRoll.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		A1000004 /* Frameworks */ = {
+		AA000009 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -35,52 +66,132 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A1000000 = {
+		AA000001 /* root */ = {
 			isa = PBXGroup;
 			children = (
-				A1000009 /* JustRoll */,
-				A1000008 /* Products */,
+				AA000002 /* JustRoll */,
+				AA000003 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A1000008 /* Products */ = {
+		AA000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A1000007 /* JustRoll.app */,
+				AA000004 /* JustRoll.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		A1000009 /* JustRoll */ = {
+		AA000002 /* JustRoll */ = {
 			isa = PBXGroup;
 			children = (
-				A1000010 /* JustRollApp.swift */,
-				A1000011 /* ContentView.swift */,
-				A1000012 /* Assets.xcassets */,
-				A1000035 /* Theme */,
+				AC000001 /* JustRollApp.swift */,
+				AC000002 /* Assets.xcassets */,
+				AB000001 /* App */,
+				AB000002 /* Design */,
+				AB000003 /* Models */,
+				AB000004 /* Services */,
+				AB000005 /* Features */,
 			);
 			path = JustRoll;
 			sourceTree = "<group>";
 		};
-		A1000035 /* Theme */ = {
+		AB000001 /* App */ = {
 			isa = PBXGroup;
 			children = (
-				A1000031 /* Theme.swift */,
-				A1000033 /* Components.swift */,
+				AC000010 /* RootTabView.swift */,
 			);
-			path = Theme;
+			path = App;
+			sourceTree = "<group>";
+		};
+		AB000002 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				AC000020 /* Theme.swift */,
+				AC000021 /* Components.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
+		AB000003 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				AC000030 /* User.swift */,
+				AC000031 /* Session.swift */,
+				AC000032 /* Contact.swift */,
+				AC000033 /* PendingPhoto.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		AB000004 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AC000040 /* SupabaseServiceProtocol.swift */,
+				AC000041 /* MockSupabaseService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		AB000005 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				AB000006 /* Sessions */,
+				AB000007 /* Contacts */,
+				AB000008 /* Unsent */,
+				AB000009 /* Settings */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		AB000006 /* Sessions */ = {
+			isa = PBXGroup;
+			children = (
+				AC000050 /* SessionsView.swift */,
+				AC000051 /* SessionsViewModel.swift */,
+				AC000052 /* SessionRowView.swift */,
+				AC000053 /* StartRollSheet.swift */,
+			);
+			path = Sessions;
+			sourceTree = "<group>";
+		};
+		AB000007 /* Contacts */ = {
+			isa = PBXGroup;
+			children = (
+				AC000060 /* ContactsView.swift */,
+				AC000061 /* ContactsViewModel.swift */,
+			);
+			path = Contacts;
+			sourceTree = "<group>";
+		};
+		AB000008 /* Unsent */ = {
+			isa = PBXGroup;
+			children = (
+				AC000070 /* UnsentView.swift */,
+				AC000071 /* UnsentViewModel.swift */,
+				AC000072 /* ReviewPhotoGridView.swift */,
+			);
+			path = Unsent;
+			sourceTree = "<group>";
+		};
+		AB000009 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				AC000080 /* SettingsView.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A1000006 /* JustRoll */ = {
+		AA000005 /* JustRoll */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1000020 /* Build configuration list for PBXNativeTarget "JustRoll" */;
+			buildConfigurationList = AA000013 /* Build configuration list for PBXNativeTarget "JustRoll" */;
 			buildPhases = (
-				A1000003 /* Resources */,
-				A1000004 /* Frameworks */,
-				A1000005 /* Sources */,
+				AA000008 /* Resources */,
+				AA000009 /* Frameworks */,
+				AA000007 /* Sources */,
 			);
 			buildRules = (
 			);
@@ -88,25 +199,25 @@
 			);
 			name = JustRoll;
 			productName = JustRoll;
-			productReference = A1000007 /* JustRoll.app */;
+			productReference = AA000004 /* JustRoll.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A1000013 /* Project object */ = {
+		AA000006 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
-					A1000006 = {
+					AA000005 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
 			};
-			buildConfigurationList = A1000014 /* Build configuration list for PBXProject "JustRoll" */;
+			buildConfigurationList = AA000010 /* Build configuration list for PBXProject "JustRoll" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -114,43 +225,59 @@
 				en,
 				Base,
 			);
-			mainGroup = A1000000;
-			productRefGroup = A1000008 /* Products */;
+			mainGroup = AA000001;
+			productRefGroup = AA000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A1000006 /* JustRoll */,
+				AA000005 /* JustRoll */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A1000003 /* Resources */ = {
+		AA000008 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000003 /* Assets.xcassets in Resources */,
+				AD000002 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A1000005 /* Sources */ = {
+		AA000007 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000002 /* ContentView.swift in Sources */,
-				A1000001 /* JustRollApp.swift in Sources */,
-				A1000030 /* Theme.swift in Sources */,
-				A1000032 /* Components.swift in Sources */,
+				AD000001 /* JustRollApp.swift in Sources */,
+				AD000010 /* RootTabView.swift in Sources */,
+				AD000020 /* Theme.swift in Sources */,
+				AD000021 /* Components.swift in Sources */,
+				AD000030 /* User.swift in Sources */,
+				AD000031 /* Session.swift in Sources */,
+				AD000032 /* Contact.swift in Sources */,
+				AD000033 /* PendingPhoto.swift in Sources */,
+				AD000040 /* SupabaseServiceProtocol.swift in Sources */,
+				AD000041 /* MockSupabaseService.swift in Sources */,
+				AD000050 /* SessionsView.swift in Sources */,
+				AD000051 /* SessionsViewModel.swift in Sources */,
+				AD000052 /* SessionRowView.swift in Sources */,
+				AD000053 /* StartRollSheet.swift in Sources */,
+				AD000060 /* ContactsView.swift in Sources */,
+				AD000061 /* ContactsViewModel.swift in Sources */,
+				AD000070 /* UnsentView.swift in Sources */,
+				AD000071 /* UnsentViewModel.swift in Sources */,
+				AD000072 /* ReviewPhotoGridView.swift in Sources */,
+				AD000080 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		A1000015 /* Debug */ = {
+		AA000011 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -211,7 +338,7 @@
 			};
 			name = Debug;
 		};
-		A1000016 /* Release */ = {
+		AA000012 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -263,7 +390,7 @@
 			};
 			name = Release;
 		};
-		A1000017 /* Debug */ = {
+		AA000014 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -276,7 +403,6 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -287,12 +413,12 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 			};
 			name = Debug;
 		};
-		A1000018 /* Release */ = {
+		AA000015 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -305,7 +431,6 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -316,7 +441,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = "1";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 			};
 			name = Release;
@@ -324,20 +449,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1000014 /* Build configuration list for PBXProject "JustRoll" */ = {
+		AA000010 /* Build configuration list for PBXProject "JustRoll" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1000015 /* Debug */,
-				A1000016 /* Release */,
+				AA000011 /* Debug */,
+				AA000012 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1000020 /* Build configuration list for PBXNativeTarget "JustRoll" */ = {
+		AA000013 /* Build configuration list for PBXNativeTarget "JustRoll" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A1000017 /* Debug */,
-				A1000018 /* Release */,
+				AA000014 /* Debug */,
+				AA000015 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -345,5 +470,5 @@
 /* End XCConfigurationList section */
 
 	};
-	rootObject = A1000013 /* Project object */;
+	rootObject = AA000006 /* Project object */;
 }
