@@ -46,7 +46,7 @@ private struct CustomTabBar: View {
         .padding(.vertical, 12)
         .padding(.horizontal, 8)
         .background(
-            RoundedRectangle(cornerRadius: 28)
+            RoundedRectangle(cornerRadius: 40)
                 .fill(Theme.Colors.background)
                 .shadow(color: .black.opacity(0.10), radius: 20, x: 0, y: 4)
         )
