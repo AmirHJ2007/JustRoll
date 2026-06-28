@@ -34,7 +34,7 @@ enum Theme {
         static func handwritten(size: CGFloat) -> Font {
             Font.custom("Caveat-Medium", size: size)
         }
-        static let displayTitle  = Font.custom("Caveat-Medium", size: 42)   // page title
+        static let displayTitle  = Font.custom("Caveat-Medium", size: 52)   // page title
         static let sectionHeader = Font.custom("Caveat-Medium", size: 20)   // "On JustRoll" etc.
 
         // MARK: SF Rounded — all body / UI text
