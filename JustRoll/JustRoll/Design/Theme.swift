@@ -30,11 +30,19 @@ enum Theme {
     }
 
     enum Typography {
-        static let title   = Font.system(size: 28, weight: .semibold)
-        static let heading = Font.system(size: 20, weight: .semibold)
-        static let body    = Font.system(size: 16, weight: .regular)
-        static let label   = Font.system(size: 15, weight: .medium)
-        static let caption = Font.system(size: 13, weight: .regular)
+        // MARK: Handwritten — Caveat Medium — display & section headers ONLY
+        static func handwritten(size: CGFloat) -> Font {
+            Font.custom("Caveat-Medium", size: size)
+        }
+        static let displayTitle  = Font.custom("Caveat-Medium", size: 42)   // page title
+        static let sectionHeader = Font.custom("Caveat-Medium", size: 20)   // "On JustRoll" etc.
+
+        // MARK: SF Rounded — all body / UI text
+        static let title   = Font.system(size: 28, weight: .bold,     design: .rounded)
+        static let heading = Font.system(size: 20, weight: .semibold, design: .rounded)
+        static let body    = Font.system(size: 16, weight: .regular,  design: .rounded)
+        static let label   = Font.system(size: 15, weight: .medium,   design: .rounded)
+        static let caption = Font.system(size: 13, weight: .regular,  design: .rounded)
     }
 }
 

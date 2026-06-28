@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		AD000001 /* JustRollApp.swift in Sources */      = {isa = PBXBuildFile; fileRef = AC000001; };
 		AD000002 /* Assets.xcassets in Resources */      = {isa = PBXBuildFile; fileRef = AC000002; };
+		AD000090 /* Caveat-Medium.ttf in Resources */    = {isa = PBXBuildFile; fileRef = AC000090; };
+		AD000091 /* Info.plist in Resources */           = {isa = PBXBuildFile; fileRef = AC000091; };
 		AD000010 /* RootTabView.swift in Sources */      = {isa = PBXBuildFile; fileRef = AC000010; };
 		AD000020 /* Theme.swift in Sources */            = {isa = PBXBuildFile; fileRef = AC000020; };
 		AD000021 /* Components.swift in Sources */       = {isa = PBXBuildFile; fileRef = AC000021; };
@@ -52,6 +54,8 @@
 		AC000071 /* UnsentViewModel.swift */         = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentViewModel.swift; sourceTree = "<group>"; };
 		AC000072 /* ReviewPhotoGridView.swift */     = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPhotoGridView.swift; sourceTree = "<group>"; };
 		AC000080 /* SettingsView.swift */            = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AC000090 /* Caveat-Medium.ttf */             = {isa = PBXFileReference; lastKnownFileType = file; path = "Caveat-Medium.ttf"; sourceTree = "<group>"; };
+		AC000091 /* Info.plist */                    = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000004 /* JustRoll.app */                  = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JustRoll.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -82,16 +86,26 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		AB000010 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				AC000090 /* Caveat-Medium.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
 		AA000002 /* JustRoll */ = {
 			isa = PBXGroup;
 			children = (
 				AC000001 /* JustRollApp.swift */,
 				AC000002 /* Assets.xcassets */,
+				AC000091 /* Info.plist */,
 				AB000001 /* App */,
 				AB000002 /* Design */,
 				AB000003 /* Models */,
 				AB000004 /* Services */,
 				AB000005 /* Features */,
+				AB000010 /* Fonts */,
 			);
 			path = JustRoll;
 			sourceTree = "<group>";
@@ -241,6 +255,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AD000002 /* Assets.xcassets in Resources */,
+				AD000090 /* Caveat-Medium.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -399,11 +414,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JustRoll/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -430,11 +442,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = JustRoll/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
