@@ -86,6 +86,11 @@ final class MockSupabaseService: SupabaseServiceProtocol {
         return contact
     }
 
+    func removeContact(contactId: String) async throws {
+        try await mockDelay(0.2)
+        contacts.removeAll { $0.id == contactId }
+    }
+
     // MARK: Photos
 
     func fetchPendingPhotos() async throws -> [PendingPhoto] {

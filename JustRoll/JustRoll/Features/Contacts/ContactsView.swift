@@ -110,8 +110,12 @@ struct ContactsView: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(contacts.enumerated()), id: \.element.id) { idx, contact in
-                    ContactRowView(contact: contact)
-                        .padding(.horizontal, 16)
+                    ContactRowView(contact: contact) {
+                        viewModel.showAddSheet = true // Start a roll — opens session flow
+                    } onRemove: {
+                        Task { await viewModel.removeContact(contact) }
+                    }
+                    .padding(.horizontal, 16)
 
                     if idx < contacts.count - 1 {
                         Divider()
@@ -199,6 +203,8 @@ struct ContactsView: View {
 
 struct ContactRowView: View {
     let contact: Contact
+    let onStartRoll: () -> Void
+    let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
@@ -215,21 +221,28 @@ struct ContactRowView: View {
 
             Spacer()
 
-            if contact.isConnected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Theme.Colors.accent)
-            } else {
-                Text("Invite")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Theme.Colors.accent)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(Theme.Colors.accentTint)
-                    .clipShape(Capsule())
+            Menu {
+                Button {
+                    onStartRoll()
+                } label: {
+                    Label("Start a roll", systemImage: "film.stack")
+                }
+
+                Button(role: .destructive) {
+                    onRemove()
+                } label: {
+                    Label("Remove contact", systemImage: "person.fill.xmark")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(Theme.Colors.textMuted)
+                    .padding(8)
+                    .background(Theme.Colors.surface)
+                    .clipShape(Circle())
             }
         }
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
     }
 }
 

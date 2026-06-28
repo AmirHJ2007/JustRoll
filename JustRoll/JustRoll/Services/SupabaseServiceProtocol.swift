@@ -17,6 +17,7 @@ protocol SupabaseServiceProtocol: AnyObject {
     // MARK: Contacts
     func fetchContacts() async throws -> [Contact]
     func addContact(username: String) async throws -> Contact
+    func removeContact(contactId: String) async throws
 
     // MARK: Photos
     // TODO: PhotoKit — add collectPhotos(for session: Session) async throws -> [PendingPhoto]

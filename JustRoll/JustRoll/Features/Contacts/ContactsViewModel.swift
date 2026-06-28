@@ -29,4 +29,13 @@ final class ContactsViewModel {
         let contact = try await service.addContact(username: username)
         contacts.append(contact)
     }
+
+    func removeContact(_ contact: Contact) async {
+        do {
+            try await service.removeContact(contactId: contact.id)
+            contacts.removeAll { $0.id == contact.id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
 }
