@@ -1,5 +1,28 @@
 import SwiftUI
 
+// MARK: - Avatar palette (curated muted green / sage / warm — deterministic by name)
+
+private struct AvatarTone {
+    let background: Color
+    let foreground: Color
+}
+
+private let avatarPalette: [AvatarTone] = [
+    AvatarTone(background: Color(hex: 0xD4E8CC), foreground: Color(hex: 0x2D4A24)), // sage
+    AvatarTone(background: Color(hex: 0xDDE6C8), foreground: Color(hex: 0x3A4A24)), // warm sage
+    AvatarTone(background: Color(hex: 0xE0EAD4), foreground: Color(hex: 0x34502A)), // pale olive
+    AvatarTone(background: Color(hex: 0xE8E2D4), foreground: Color(hex: 0x4A4030)), // warm stone
+    AvatarTone(background: Color(hex: 0xD8EDD2), foreground: Color(hex: 0x2E4A2C)), // fern
+    AvatarTone(background: Color(hex: 0xE4DFD0), foreground: Color(hex: 0x46402C)), // khaki
+]
+
+private func avatarTone(for name: String) -> AvatarTone {
+    let hash = name.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+    return avatarPalette[hash % avatarPalette.count]
+}
+
+// MARK: - View
+
 struct ContactsView: View {
     @State private var viewModel = ContactsViewModel()
     @State private var searchText = ""
@@ -72,7 +95,6 @@ struct ContactsView: View {
             .padding(.top, 16)
             .padding(.bottom, 14)
 
-            // Avatar strip for connected friends
             if !connected.isEmpty && searchText.isEmpty {
                 crewStrip
             }
@@ -89,21 +111,21 @@ struct ContactsView: View {
             HStack(spacing: 16) {
                 ForEach(connected) { contact in
                     VStack(spacing: 6) {
-                        gradientAvatar(name: contact.name, size: 52, seed: contact.id)
+                        avatarView(name: contact.name, size: 48)
                         Text(contact.name.components(separatedBy: " ").first ?? contact.name)
-                            .font(Theme.Typography.caption)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundColor(Theme.Colors.textSecondary)
                             .lineLimit(1)
                     }
-                    .frame(width: 58)
+                    .frame(width: 56)
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
         }
     }
 
-    // MARK: - Search
+    // MARK: - Search bar
 
     private var searchBar: some View {
         HStack(spacing: 10) {
@@ -133,36 +155,31 @@ struct ContactsView: View {
 
     private var contactList: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 if !connected.isEmpty {
-                    contactSection(
-                        title: "On JustRoll",
-                        contacts: connected
-                    )
+                    contactSection(title: "On JustRoll", contacts: connected)
                 }
                 if !notConnected.isEmpty {
                     contactSection(title: "Invite them", contacts: notConnected)
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 6)
+            .padding(.top, 8)
             .padding(.bottom, 32)
         }
     }
 
     private func contactSection(title: String, contacts: [Contact]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(Theme.Typography.sectionHeader)
-                .foregroundColor(Theme.Colors.accent)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .tracking(0.8)
+                .foregroundColor(Theme.Colors.textMuted)
                 .padding(.leading, 4)
 
             VStack(spacing: 0) {
                 ForEach(Array(contacts.enumerated()), id: \.element.id) { idx, contact in
-                    ContactRowView(
-                        contact: contact,
-                        seed: contact.id
-                    ) {
+                    ContactRowView(contact: contact) {
                         viewModel.showAddSheet = true
                     } onRemove: {
                         Task { await viewModel.removeContact(contact) }
@@ -170,38 +187,28 @@ struct ContactsView: View {
                     .padding(.horizontal, 16)
 
                     if idx < contacts.count - 1 {
-                        Divider().padding(.leading, 76)
+                        Divider().padding(.leading, 74)
                     }
                 }
             }
             .background(Theme.Colors.background)
-            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
             .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
         }
     }
 
-    // MARK: - Gradient avatar (shared)
-
-    static let avatarGradients: [[Color]] = [
-        [Color(hex: 0x6DAA5A), Color(hex: 0x3A7D44)],
-        [Color(hex: 0x5E7DC0), Color(hex: 0x3B4E9E)],
-        [Color(hex: 0xC07B5E), Color(hex: 0x9E4E3B)],
-        [Color(hex: 0x9E5EC0), Color(hex: 0x6B3B9E)],
-        [Color(hex: 0xC0A05E), Color(hex: 0x9E7A3B)],
-        [Color(hex: 0x5EAAC0), Color(hex: 0x3B7E9E)],
-    ]
+    // MARK: - Avatar helper
 
     @ViewBuilder
-    func gradientAvatar(name: String, size: CGFloat, seed: String) -> some View {
-        let idx = seed.unicodeScalars.reduce(0) { $0 &+ Int($1.value) } % Self.avatarGradients.count
-        let gradient = Self.avatarGradients[idx]
+    func avatarView(name: String, size: CGFloat) -> some View {
+        let tone = avatarTone(for: name)
         Circle()
-            .fill(LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(tone.background)
             .frame(width: size, height: size)
             .overlay(
                 Text(String(name.prefix(1)).uppercased())
                     .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(tone.foreground)
             )
     }
 
@@ -315,13 +322,12 @@ struct ContactsView: View {
 
 struct ContactRowView: View {
     let contact: Contact
-    let seed: String
     let onStartRoll: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 14) {
-            gradientAvatar(name: contact.name, size: 48, seed: seed)
+            avatarCircle
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(contact.name)
@@ -329,7 +335,7 @@ struct ContactRowView: View {
                     .foregroundColor(Theme.Colors.textPrimary)
                 Text("@\(contact.username)")
                     .font(Theme.Typography.caption)
-                    .foregroundColor(Theme.Colors.textMuted)
+                    .foregroundColor(Theme.Colors.textSecondary)
             }
 
             Spacer()
@@ -350,20 +356,18 @@ struct ContactRowView: View {
                     .clipShape(Circle())
             }
         }
-        .padding(.vertical, 13)
+        .padding(.vertical, 12)
     }
 
-    @ViewBuilder
-    private func gradientAvatar(name: String, size: CGFloat, seed: String) -> some View {
-        let idx = seed.unicodeScalars.reduce(0) { $0 &+ Int($1.value) } % ContactsView.avatarGradients.count
-        let gradient = ContactsView.avatarGradients[idx]
-        Circle()
-            .fill(LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
-            .frame(width: size, height: size)
+    private var avatarCircle: some View {
+        let tone = avatarTone(for: contact.name)
+        return Circle()
+            .fill(tone.background)
+            .frame(width: 46, height: 46)
             .overlay(
-                Text(String(name.prefix(1)).uppercased())
-                    .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
+                Text(String(contact.name.prefix(1)).uppercased())
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundColor(tone.foreground)
             )
     }
 }
