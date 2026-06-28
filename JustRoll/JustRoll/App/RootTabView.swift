@@ -5,25 +5,52 @@ struct RootTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            SessionsView()
-                .tabItem { Label("Sessions", systemImage: selectedTab == 0 ? "film.stack.fill" : "film.stack") }
-                .tag(0)
-
-            ContactsView()
-                .tabItem { Label("Contacts", systemImage: selectedTab == 1 ? "person.2.fill" : "person.2") }
-                .tag(1)
-
-            UnsentView()
-                .tabItem { Label("Unsent", systemImage: selectedTab == 2 ? "paperplane.fill" : "paperplane") }
-                .tag(2)
-
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: selectedTab == 3 ? "gearshape.fill" : "gearshape") }
-                .tag(3)
+            SessionsView().tag(0)
+            ContactsView().tag(1)
+            UnsentView().tag(2)
+            SettingsView().tag(3)
         }
-        .tint(Theme.Colors.accent)
-        .toolbarBackground(Theme.Colors.surface, for: .tabBar)
-        .toolbarColorScheme(.light, for: .tabBar)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            CustomTabBar(selectedTab: $selectedTab)
+        }
+    }
+}
+
+// MARK: - Custom tab bar
+
+private struct CustomTabBar: View {
+    @Binding var selectedTab: Int
+
+    private let items: [(label: String, outline: String, filled: String)] = [
+        ("Sessions", "film.stack",   "film.stack.fill"),
+        ("Contacts", "person.2",     "person.2.fill"),
+        ("Unsent",   "paperplane",   "paperplane.fill"),
+        ("Settings", "gearshape",    "gearshape.fill"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items.indices, id: \.self) { i in
+                let isSelected = selectedTab == i
+                Button {
+                    selectedTab = i
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: isSelected ? items[i].filled : items[i].outline)
+                            .font(.system(size: 22))
+                        Text(items[i].label)
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundColor(isSelected ? Theme.Colors.accent : Theme.Colors.textMuted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 10)
+                }
+            }
+        }
+        .padding(.bottom, 20)
+        .background(Theme.Colors.surface.ignoresSafeArea(edges: .bottom))
+        .overlay(Divider(), alignment: .top)
     }
 }
 
