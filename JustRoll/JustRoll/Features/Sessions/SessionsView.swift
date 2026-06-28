@@ -16,6 +16,7 @@ struct SessionsView: View {
             }
             .navigationTitle("Sessions")
             .background(Theme.Colors.background.ignoresSafeArea())
+            .themedNavBar()
             .task { await viewModel.load() }
             .sheet(isPresented: $viewModel.showStartSheet) {
                 StartRollSheet(viewModel: viewModel)

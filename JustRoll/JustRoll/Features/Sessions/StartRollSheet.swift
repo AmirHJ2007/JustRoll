@@ -34,6 +34,7 @@ struct StartRollSheet: View {
                 }
             }
             .background(Theme.Colors.background.ignoresSafeArea())
+            .themedNavBar()
         }
     }
 

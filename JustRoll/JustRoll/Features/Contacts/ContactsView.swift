@@ -28,6 +28,7 @@ struct ContactsView: View {
             }
             .navigationTitle("Contacts")
             .background(Theme.Colors.background.ignoresSafeArea())
+            .themedNavBar()
             .searchable(text: $searchText, prompt: "Find a friend")
             .task { await viewModel.load() }
             .toolbar {
@@ -130,6 +131,7 @@ struct ContactsView: View {
                 }
             }
             .background(Theme.Colors.background.ignoresSafeArea())
+            .themedNavBar()
         }
     }
 }

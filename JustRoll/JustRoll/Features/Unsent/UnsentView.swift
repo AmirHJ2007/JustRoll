@@ -18,6 +18,7 @@ struct UnsentView: View {
             }
             .navigationTitle("Unsent")
             .background(Theme.Colors.background.ignoresSafeArea())
+            .themedNavBar()
             .task { await viewModel.load() }
             .navigationDestination(isPresented: $showingReview) {
                 if let batch = reviewBatch {

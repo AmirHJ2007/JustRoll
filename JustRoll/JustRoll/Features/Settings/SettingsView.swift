@@ -17,6 +17,7 @@ struct SettingsView: View {
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
             .background(Theme.Colors.background.ignoresSafeArea())
+            .themedNavBar()
         }
     }
 

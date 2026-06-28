@@ -16,6 +16,8 @@ struct RootTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .tint(Theme.Colors.accent)
+        .toolbarBackground(Theme.Colors.surface, for: .tabBar)
+        .toolbarColorScheme(.dark, for: .tabBar)
     }
 }
 

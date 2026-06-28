@@ -114,6 +114,17 @@ struct ThemedTextFieldStyle: TextFieldStyle {
     }
 }
 
+// MARK: - Navigation bar theme modifier
+
+extension View {
+    /// Applies the olive navigation bar with white title/buttons to any NavigationStack.
+    func themedNavBar() -> some View {
+        self
+            .toolbarBackground(Theme.Colors.background, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+    }
+}
+
 #Preview("Components") {
     VStack(spacing: Theme.Spacing.lg) {
         RollButton(title: "Start a roll") {}

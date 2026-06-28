@@ -14,42 +14,44 @@ struct JustRollApp: App {
     }
 
     private func configureAppearance() {
-        let bg = UIColor(Theme.Colors.background)
-        let surface = UIColor(Theme.Colors.surface)
-        let white = UIColor.white
-        let textMuted = UIColor(Theme.Colors.textMuted)
+        // Explicit UIColor values — avoids SwiftUI Color conversion issues
+        let bgColor      = UIColor(red: 58/255,  green: 85/255,  blue: 48/255,  alpha: 1) // #3A5530
+        let surfaceColor = UIColor(red: 94/255,  green: 125/255, blue: 79/255,  alpha: 1) // #5E7D4F
+        let mutedColor   = UIColor(red: 135/255, green: 168/255, blue: 122/255, alpha: 1) // #87A87A
 
-        // Navigation bar — olive background, white title/buttons
-        let navAppearance = UINavigationBarAppearance()
-        navAppearance.configureWithOpaqueBackground()
-        navAppearance.backgroundColor = bg
-        navAppearance.titleTextAttributes          = [.foregroundColor: white]
-        navAppearance.largeTitleTextAttributes     = [.foregroundColor: white]
-        navAppearance.shadowColor = .clear
-        UINavigationBar.appearance().standardAppearance   = navAppearance
-        UINavigationBar.appearance().scrollEdgeAppearance = navAppearance
-        UINavigationBar.appearance().compactAppearance    = navAppearance
-        UINavigationBar.appearance().tintColor            = white
+        // MARK: Navigation bar
+        let nav = UINavigationBarAppearance()
+        nav.configureWithOpaqueBackground()
+        nav.backgroundColor                = bgColor
+        nav.shadowColor                    = .clear
+        nav.titleTextAttributes            = [.foregroundColor: UIColor.white]
+        nav.largeTitleTextAttributes       = [.foregroundColor: UIColor.white]
+        UINavigationBar.appearance().standardAppearance   = nav
+        UINavigationBar.appearance().scrollEdgeAppearance = nav
+        UINavigationBar.appearance().compactAppearance    = nav
+        UINavigationBar.appearance().tintColor            = .white
 
-        // Tab bar — olive background, white selected / muted unselected
-        let tabAppearance = UITabBarAppearance()
-        tabAppearance.configureWithOpaqueBackground()
-        tabAppearance.backgroundColor = surface
+        // MARK: Tab bar
+        let tab = UITabBarAppearance()
+        tab.configureWithOpaqueBackground()
+        tab.backgroundColor = surfaceColor
+        tab.shadowColor     = .clear
 
-        let itemAppearance = UITabBarItemAppearance()
-        itemAppearance.selected.iconColor    = white
-        itemAppearance.selected.titleTextAttributes   = [.foregroundColor: white]
-        itemAppearance.normal.iconColor      = textMuted
-        itemAppearance.normal.titleTextAttributes     = [.foregroundColor: textMuted]
-        tabAppearance.stackedLayoutAppearance   = itemAppearance
-        tabAppearance.inlineLayoutAppearance    = itemAppearance
-        tabAppearance.compactInlineLayoutAppearance = itemAppearance
+        let item = UITabBarItemAppearance()
+        item.selected.iconColor = .white
+        item.selected.titleTextAttributes   = [.foregroundColor: UIColor.white]
+        item.normal.iconColor   = mutedColor
+        item.normal.titleTextAttributes     = [.foregroundColor: mutedColor]
 
-        UITabBar.appearance().standardAppearance   = tabAppearance
-        UITabBar.appearance().scrollEdgeAppearance = tabAppearance
+        tab.stackedLayoutAppearance      = item
+        tab.inlineLayoutAppearance       = item
+        tab.compactInlineLayoutAppearance = item
 
-        // List / table view backgrounds
-        UITableView.appearance().backgroundColor = bg
+        UITabBar.appearance().standardAppearance   = tab
+        UITabBar.appearance().scrollEdgeAppearance = tab
+
+        // MARK: List / table
+        UITableView.appearance().backgroundColor     = bgColor
         UITableViewCell.appearance().backgroundColor = .clear
     }
 }
