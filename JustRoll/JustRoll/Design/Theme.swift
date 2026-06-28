@@ -2,16 +2,16 @@ import SwiftUI
 
 enum Theme {
     enum Colors {
-        static let accent        = Color(hex: 0x5E7D4F)
-        static let accentPressed = Color(hex: 0x4D6A40)
-        static let accentTint    = Color(hex: 0xEDF1E9)
-        static let background    = Color(hex: 0xFFFFFF)
-        static let surface       = Color(hex: 0xF6F7F5)
-        static let textPrimary   = Color(hex: 0x1C1F1D)
-        static let textSecondary = Color(hex: 0x6B716D)
-        static let textMuted     = Color(hex: 0x9AA09C)
-        static let border        = Color(hex: 0xE3E6E3)
-        static let danger        = Color(hex: 0xD8533A)
+        static let accent        = Color(hex: 0xFFFFFF)   // white — primary button fill, key highlights
+        static let accentPressed = Color(hex: 0xECF0E8)   // warm off-white press state
+        static let accentTint    = Color(hex: 0x6B8B5A)   // mid olive — chips, badges on green bg
+        static let background    = Color(hex: 0x5E7D4F)   // olive green page background
+        static let surface       = Color(hex: 0x4D6A40)   // darker olive — cards, sections
+        static let textPrimary   = Color(hex: 0xFFFFFF)   // white
+        static let textSecondary = Color(hex: 0xC5D4BE)   // sage-tinted white
+        static let textMuted     = Color(hex: 0x8FAB80)   // muted olive-light
+        static let border        = Color(hex: 0x7A9A6A)   // lighter olive hairline
+        static let danger        = Color(hex: 0xFF8F80)   // coral — visible on green
     }
 
     enum Radius {

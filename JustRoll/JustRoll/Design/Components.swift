@@ -10,11 +10,11 @@ struct RollButton: View {
             Group {
                 if isLoading {
                     ProgressView()
-                        .tint(.white)
+                        .tint(Theme.Colors.background)
                 } else {
                     Text(title)
                         .font(Theme.Typography.label)
-                        .foregroundColor(.white)
+                        .foregroundColor(Theme.Colors.background)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -48,7 +48,7 @@ struct ActiveChip: View {
     var body: some View {
         Text(label)
             .font(Theme.Typography.caption)
-            .foregroundColor(Theme.Colors.accentPressed)
+            .foregroundColor(Theme.Colors.textPrimary)
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, Theme.Spacing.xs)
             .background(Theme.Colors.accentTint)
