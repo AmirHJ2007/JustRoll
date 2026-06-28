@@ -17,7 +17,7 @@ struct RootTabView: View {
         }
         .tint(Theme.Colors.accent)
         .toolbarBackground(Theme.Colors.surface, for: .tabBar)
-        .toolbarColorScheme(.dark, for: .tabBar)
+        .toolbarColorScheme(.light, for: .tabBar)
     }
 }
 

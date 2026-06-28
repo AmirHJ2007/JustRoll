@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Primary button (white pill, olive text — readable on any olive background)
+// MARK: - Primary button (olive pill, white text)
 
 struct RollButton: View {
     let title: String
@@ -11,11 +11,11 @@ struct RollButton: View {
         Button(action: action) {
             Group {
                 if isLoading {
-                    ProgressView().tint(Theme.Colors.background)
+                    ProgressView().tint(.white)
                 } else {
                     Text(title)
                         .font(Theme.Typography.label)
-                        .foregroundColor(Theme.Colors.background)
+                        .foregroundColor(.white)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 48)
@@ -26,7 +26,7 @@ struct RollButton: View {
     }
 }
 
-// MARK: - Danger button (coral outline — for leave/end actions)
+// MARK: - Danger button
 
 struct DangerButton: View {
     let title: String
@@ -38,14 +38,14 @@ struct DangerButton: View {
                 .font(Theme.Typography.label)
                 .foregroundColor(Theme.Colors.danger)
                 .frame(maxWidth: .infinity, minHeight: 48)
-                .background(Theme.Colors.background.opacity(0.3))
+                .background(Theme.Colors.background)
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(Theme.Colors.danger, lineWidth: 1))
         }
     }
 }
 
-// MARK: - Active chip (lighter olive badge)
+// MARK: - Active chip
 
 struct ActiveChip: View {
     let label: String
@@ -53,7 +53,7 @@ struct ActiveChip: View {
     var body: some View {
         Text(label)
             .font(Theme.Typography.caption)
-            .foregroundColor(Theme.Colors.textPrimary)
+            .foregroundColor(Theme.Colors.accentPressed)
             .padding(.horizontal, Theme.Spacing.sm)
             .padding(.vertical, Theme.Spacing.xs)
             .background(Theme.Colors.accentTint)
@@ -61,7 +61,7 @@ struct ActiveChip: View {
     }
 }
 
-// MARK: - Avatar (lighter olive circle with white initial)
+// MARK: - Avatar
 
 struct AvatarView: View {
     let name: String
@@ -76,19 +76,19 @@ struct AvatarView: View {
             .overlay(
                 Text(initial)
                     .font(.system(size: size * 0.4, weight: .semibold))
-                    .foregroundColor(Theme.Colors.textPrimary)
+                    .foregroundColor(Theme.Colors.accent)
             )
     }
 }
 
-// MARK: - Card (medium olive surface — visibly elevated above the deep page bg)
+// MARK: - Card (white, rounded, hairline border)
 
 struct CardView<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
         content
-            .background(Theme.Colors.surface)   // medium olive — NOT background
+            .background(Theme.Colors.background)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.card)
@@ -97,7 +97,7 @@ struct CardView<Content: View>: View {
     }
 }
 
-// MARK: - Text field (sunken deep-olive input on medium-olive card)
+// MARK: - Text field
 
 struct ThemedTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
@@ -105,7 +105,7 @@ struct ThemedTextFieldStyle: TextFieldStyle {
             .font(Theme.Typography.body)
             .foregroundColor(Theme.Colors.textPrimary)
             .padding(Theme.Spacing.md)
-            .background(Theme.Colors.background)
+            .background(Theme.Colors.surface)
             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.control)
@@ -114,14 +114,13 @@ struct ThemedTextFieldStyle: TextFieldStyle {
     }
 }
 
-// MARK: - Navigation bar theme modifier
+// MARK: - Navigation bar modifier
 
 extension View {
-    /// Applies the olive navigation bar with white title/buttons to any NavigationStack.
     func themedNavBar() -> some View {
         self
             .toolbarBackground(Theme.Colors.background, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
     }
 }
 
@@ -142,5 +141,5 @@ extension View {
         }
     }
     .padding(Theme.Spacing.lg)
-    .background(Theme.Colors.background)
+    .background(Theme.Colors.surface)
 }

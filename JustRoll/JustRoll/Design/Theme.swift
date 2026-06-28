@@ -2,17 +2,16 @@ import SwiftUI
 
 enum Theme {
     enum Colors {
-        // Three clear tonal steps: deep page → medium cards → lighter chips → white button
-        static let accent        = Color(hex: 0xFFFFFF)   // white — primary button, key highlights
-        static let accentPressed = Color(hex: 0xE8EDE4)   // off-white press state
-        static let accentTint    = Color(hex: 0x7A9A6A)   // lighter olive — chips, badges, avatars
-        static let background    = Color(hex: 0x3A5530)   // deep olive — page background (darkest)
-        static let surface       = Color(hex: 0x5E7D4F)   // medium olive — cards (clearly elevated)
-        static let textPrimary   = Color(hex: 0xFFFFFF)   // white
-        static let textSecondary = Color(hex: 0xBDD0B4)   // sage-white
-        static let textMuted     = Color(hex: 0x87A87A)   // muted sage
-        static let border        = Color(hex: 0x6B8B5A)   // subtle card edge
-        static let danger        = Color(hex: 0xFF8F80)   // coral — visible on olive
+        static let accent        = Color(hex: 0x5E7D4F)   // olive — primary action, active states
+        static let accentPressed = Color(hex: 0x4D6A40)   // darker olive — press state
+        static let accentTint    = Color(hex: 0xEDF1E9)   // pale sage — chips, badges, tints
+        static let background    = Color(hex: 0xFFFFFF)   // white — page background, cards
+        static let surface       = Color(hex: 0xF4F6F2)   // very light sage — sections, inputs
+        static let textPrimary   = Color(hex: 0x1C1F1D)   // warm charcoal — headlines, body
+        static let textSecondary = Color(hex: 0x6B716D)   // medium gray — subtitles, metadata
+        static let textMuted     = Color(hex: 0x9AA09C)   // light gray — hints, placeholders
+        static let border        = Color(hex: 0xE3E6E3)   // hairline — card borders, dividers
+        static let danger        = Color(hex: 0xD8533A)   // red — leave, end, delete
     }
 
     enum Radius {

@@ -16,7 +16,7 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
-            .background(Theme.Colors.background.ignoresSafeArea())
+            .background(Theme.Colors.surface.ignoresSafeArea())
             .themedNavBar()
         }
     }
@@ -28,7 +28,7 @@ struct SettingsView: View {
             settingsRow(icon: "person.circle", label: "Profile", value: "Amir")
             settingsRow(icon: "envelope",      label: "Email",   value: "amir@example.com")
         } header: { sectionHeader("Account") }
-        .listRowBackground(Theme.Colors.surface)
+        .listRowBackground(Theme.Colors.background)
     }
 
     private var subscriptionSection: some View {
@@ -40,14 +40,13 @@ struct SettingsView: View {
                         .foregroundColor(Theme.Colors.textPrimary)
                 } icon: {
                     Image(systemName: "sparkles")
-                        .foregroundColor(Theme.Colors.accentTint)
+                        .foregroundColor(Theme.Colors.accent)
                 }
                 Spacer()
                 Text("28 days left")
                     .font(Theme.Typography.caption)
-                    .foregroundColor(Theme.Colors.textSecondary)
+                    .foregroundColor(Theme.Colors.accent)
             }
-
             HStack {
                 Label {
                     Text("Upgrade to JustRoll+")
@@ -55,7 +54,7 @@ struct SettingsView: View {
                         .foregroundColor(Theme.Colors.textPrimary)
                 } icon: {
                     Image(systemName: "dollarsign.circle")
-                        .foregroundColor(Theme.Colors.accentTint)
+                        .foregroundColor(Theme.Colors.accent)
                 }
                 Spacer()
                 Text("$3/mo")
@@ -66,7 +65,7 @@ struct SettingsView: View {
                     .foregroundColor(Theme.Colors.textMuted)
             }
         } header: { sectionHeader("Subscription") }
-        .listRowBackground(Theme.Colors.surface)
+        .listRowBackground(Theme.Colors.background)
     }
 
     private var notificationsSection: some View {
@@ -83,10 +82,10 @@ struct SettingsView: View {
                     }
                 } icon: {
                     Image(systemName: "bell.fill")
-                        .foregroundColor(Theme.Colors.accentTint)
+                        .foregroundColor(Theme.Colors.accent)
                 }
             }
-            .tint(Theme.Colors.accentTint)
+            .tint(Theme.Colors.accent)
 
             Toggle(isOn: $nudgesEnabled) {
                 Label {
@@ -100,12 +99,12 @@ struct SettingsView: View {
                     }
                 } icon: {
                     Image(systemName: "clock.fill")
-                        .foregroundColor(Theme.Colors.accentTint)
+                        .foregroundColor(Theme.Colors.accent)
                 }
             }
-            .tint(Theme.Colors.accentTint)
+            .tint(Theme.Colors.accent)
         } header: { sectionHeader("Notifications") }
-        .listRowBackground(Theme.Colors.surface)
+        .listRowBackground(Theme.Colors.background)
     }
 
     private var permissionsSection: some View {
@@ -114,19 +113,19 @@ struct SettingsView: View {
             settingsRow(icon: "location",           label: "Location",           value: "While using")
             settingsRow(icon: "bell.badge",         label: "Push notifications", value: "Allowed")
         } header: { sectionHeader("Permissions") }
-        .listRowBackground(Theme.Colors.surface)
+        .listRowBackground(Theme.Colors.background)
     }
 
     private var signOutSection: some View {
         Section {
             Button(role: .destructive) {
-                // TODO: call service.signOut()
+                // TODO: service.signOut()
             } label: {
                 Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
                     .font(Theme.Typography.label)
             }
         }
-        .listRowBackground(Theme.Colors.surface)
+        .listRowBackground(Theme.Colors.background)
     }
 
     // MARK: - Helpers
@@ -146,7 +145,7 @@ struct SettingsView: View {
                     .foregroundColor(Theme.Colors.textPrimary)
             } icon: {
                 Image(systemName: icon)
-                    .foregroundColor(Theme.Colors.accentTint)
+                    .foregroundColor(Theme.Colors.accent)
             }
             Spacer()
             Text(value)

@@ -14,44 +14,23 @@ struct JustRollApp: App {
     }
 
     private func configureAppearance() {
-        // Explicit UIColor values — avoids SwiftUI Color conversion issues
-        let bgColor      = UIColor(red: 58/255,  green: 85/255,  blue: 48/255,  alpha: 1) // #3A5530
-        let surfaceColor = UIColor(red: 94/255,  green: 125/255, blue: 79/255,  alpha: 1) // #5E7D4F
-        let mutedColor   = UIColor(red: 135/255, green: 168/255, blue: 122/255, alpha: 1) // #87A87A
+        let oliveColor = UIColor(red: 94/255, green: 125/255, blue: 79/255, alpha: 1) // #5E7D4F
 
-        // MARK: Navigation bar
+        // Navigation bar — system light appearance, olive tint for buttons/back
         let nav = UINavigationBarAppearance()
-        nav.configureWithOpaqueBackground()
-        nav.backgroundColor                = bgColor
-        nav.shadowColor                    = .clear
-        nav.titleTextAttributes            = [.foregroundColor: UIColor.white]
-        nav.largeTitleTextAttributes       = [.foregroundColor: UIColor.white]
+        nav.configureWithDefaultBackground()
+        nav.shadowColor = UIColor(red: 227/255, green: 230/255, blue: 227/255, alpha: 1)
         UINavigationBar.appearance().standardAppearance   = nav
         UINavigationBar.appearance().scrollEdgeAppearance = nav
         UINavigationBar.appearance().compactAppearance    = nav
-        UINavigationBar.appearance().tintColor            = .white
+        UINavigationBar.appearance().tintColor            = oliveColor
 
-        // MARK: Tab bar
-        let tab = UITabBarAppearance()
-        tab.configureWithOpaqueBackground()
-        tab.backgroundColor = surfaceColor
-        tab.shadowColor     = .clear
+        // Tab bar — olive tint for selected item
+        UITabBar.appearance().tintColor         = oliveColor
+        UITabBar.appearance().unselectedItemTintColor = UIColor(red: 154/255, green: 160/255, blue: 156/255, alpha: 1)
 
-        let item = UITabBarItemAppearance()
-        item.selected.iconColor = .white
-        item.selected.titleTextAttributes   = [.foregroundColor: UIColor.white]
-        item.normal.iconColor   = mutedColor
-        item.normal.titleTextAttributes     = [.foregroundColor: mutedColor]
-
-        tab.stackedLayoutAppearance      = item
-        tab.inlineLayoutAppearance       = item
-        tab.compactInlineLayoutAppearance = item
-
-        UITabBar.appearance().standardAppearance   = tab
-        UITabBar.appearance().scrollEdgeAppearance = tab
-
-        // MARK: List / table
-        UITableView.appearance().backgroundColor     = bgColor
+        // List backgrounds
+        UITableView.appearance().backgroundColor     = .clear
         UITableViewCell.appearance().backgroundColor = .clear
     }
 }
