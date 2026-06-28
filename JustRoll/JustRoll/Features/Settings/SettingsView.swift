@@ -23,15 +23,15 @@ struct SettingsView: View {
     // MARK: - Sections
 
     private var accountSection: some View {
-        Section("Account") {
+        Section {
             settingsRow(icon: "person.circle", label: "Profile", value: "Amir")
             settingsRow(icon: "envelope",      label: "Email",   value: "amir@example.com")
-        }
+        } header: { sectionHeader("Account") }
         .listRowBackground(Theme.Colors.surface)
     }
 
     private var subscriptionSection: some View {
-        Section("Subscription") {
+        Section {
             HStack {
                 Label {
                     Text("Free trial")
@@ -64,12 +64,12 @@ struct SettingsView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(Theme.Colors.textMuted)
             }
-        }
+        } header: { sectionHeader("Subscription") }
         .listRowBackground(Theme.Colors.surface)
     }
 
     private var notificationsSection: some View {
-        Section("Notifications") {
+        Section {
             Toggle(isOn: $newPhotosEnabled) {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
@@ -103,15 +103,16 @@ struct SettingsView: View {
                 }
             }
             .tint(Theme.Colors.accentTint)
-        }
+        } header: { sectionHeader("Notifications") }
+        .listRowBackground(Theme.Colors.surface)
     }
 
     private var permissionsSection: some View {
-        Section("Permissions") {
-            settingsRow(icon: "photo.on.rectangle", label: "Photo library",        value: "Full access")
-            settingsRow(icon: "location",           label: "Location",             value: "While using")
-            settingsRow(icon: "bell.badge",         label: "Push notifications",   value: "Allowed")
-        }
+        Section {
+            settingsRow(icon: "photo.on.rectangle", label: "Photo library",      value: "Full access")
+            settingsRow(icon: "location",           label: "Location",           value: "While using")
+            settingsRow(icon: "bell.badge",         label: "Push notifications", value: "Allowed")
+        } header: { sectionHeader("Permissions") }
         .listRowBackground(Theme.Colors.surface)
     }
 
@@ -127,7 +128,14 @@ struct SettingsView: View {
         .listRowBackground(Theme.Colors.surface)
     }
 
-    // MARK: - Helper
+    // MARK: - Helpers
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.Typography.caption)
+            .foregroundColor(Theme.Colors.textMuted)
+            .textCase(nil)
+    }
 
     private func settingsRow(icon: String, label: String, value: String) -> some View {
         HStack {
