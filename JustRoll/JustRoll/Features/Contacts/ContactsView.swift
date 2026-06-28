@@ -6,6 +6,7 @@ struct ContactsView: View {
     @State private var addUsername = ""
     @State private var isAdding = false
     @State private var addError: String?
+    @State private var isScanning = false
 
     private var filtered: [Contact] {
         guard !searchText.isEmpty else { return viewModel.contacts }
@@ -182,6 +183,11 @@ struct ContactsView: View {
                         isAdding = false
                     }
                 }
+
+                orDivider
+
+                nearbyButton
+
                 Spacer()
             }
             .padding(Theme.Spacing.lg)
@@ -196,6 +202,55 @@ struct ContactsView: View {
             .background(Theme.Colors.background.ignoresSafeArea())
             .themedNavBar()
         }
+    }
+
+    private var orDivider: some View {
+        HStack(spacing: Theme.Spacing.md) {
+            Rectangle()
+                .fill(Theme.Colors.border)
+                .frame(height: 0.5)
+            Text("or")
+                .font(Theme.Typography.caption)
+                .foregroundColor(Theme.Colors.textMuted)
+            Rectangle()
+                .fill(Theme.Colors.border)
+                .frame(height: 0.5)
+        }
+    }
+
+    private var nearbyButton: some View {
+        Button {
+            isScanning = true
+            // TODO: BLE nearby scan
+            Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                isScanning = false
+            }
+        } label: {
+            HStack(spacing: Theme.Spacing.sm) {
+                if isScanning {
+                    ProgressView()
+                        .tint(Theme.Colors.accent)
+                        .scaleEffect(0.85)
+                    Text("Looking for people nearby…")
+                        .font(Theme.Typography.label)
+                        .foregroundColor(Theme.Colors.accent)
+                } else {
+                    Image(systemName: "antenna.radiowaves.left.and.right")
+                        .font(.system(size: 16))
+                        .foregroundColor(Theme.Colors.accent)
+                    Text("They are nearby")
+                        .font(Theme.Typography.label)
+                        .foregroundColor(Theme.Colors.accent)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .background(Theme.Colors.accentTint)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(Theme.Colors.accent.opacity(0.25), lineWidth: 1))
+        }
+        .disabled(isScanning)
+        .animation(.easeInOut(duration: 0.2), value: isScanning)
     }
 }
 
