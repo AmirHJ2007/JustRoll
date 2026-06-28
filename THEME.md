@@ -1,4 +1,4 @@
-# THEME.md — JustRoll
+ # THEME.md — JustRoll
 
 Visual identity: **white-dominant, charcoal text, fresh green accent.**
 Direction: clean and modern (not heavy retro-film). Friendly, light, effortless.
