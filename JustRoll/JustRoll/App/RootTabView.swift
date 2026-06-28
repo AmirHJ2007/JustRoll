@@ -43,13 +43,16 @@ private struct CustomTabBar: View {
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 24)
-        .background(Theme.Colors.surface.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Divider()
-        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 28)
+                .fill(Theme.Colors.background)
+                .shadow(color: .black.opacity(0.10), radius: 20, x: 0, y: 4)
+        )
+        .padding(.horizontal, 20)
+        .padding(.bottom, 20)
+        .background(Theme.Colors.background.ignoresSafeArea(edges: .bottom))
     }
 }
 
@@ -63,19 +66,13 @@ private struct TabBarButton: View {
             VStack(spacing: 4) {
                 Image(systemName: isSelected ? item.filled : item.outline)
                     .font(.system(size: 22))
-                    .frame(height: 24)
+                    .frame(height: 26)
                 Text(item.label)
                     .font(.system(size: 10, weight: .medium))
             }
             .foregroundColor(isSelected ? Theme.Colors.accent : Theme.Colors.textMuted)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(Theme.Colors.accentTint)
-                }
-            }
+            .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
         .animation(.easeInOut(duration: 0.15), value: isSelected)
