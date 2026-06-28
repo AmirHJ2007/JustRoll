@@ -5,9 +5,9 @@ struct RootTabView: View {
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            SessionsView().tag(0)
-            ContactsView().tag(1)
-            UnsentView().tag(2)
+            ContactsView().tag(0)
+            UnsentView().tag(1)
+            SessionsView().tag(2)
             SettingsView().tag(3)
         }
         .toolbar(.hidden, for: .tabBar)
@@ -26,9 +26,9 @@ private struct TabItemData {
 }
 
 private let tabItems: [TabItemData] = [
-    TabItemData(label: "Sessions", outline: "film.stack",  filled: "film.stack.fill"),
     TabItemData(label: "Contacts", outline: "person.2",    filled: "person.2.fill"),
     TabItemData(label: "Unsent",   outline: "paperplane",  filled: "paperplane.fill"),
+    TabItemData(label: "Sessions", outline: "film.stack",  filled: "film.stack.fill"),
     TabItemData(label: "Settings", outline: "gearshape",   filled: "gearshape.fill"),
 ]
 
