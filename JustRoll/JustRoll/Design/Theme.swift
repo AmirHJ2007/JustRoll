@@ -2,9 +2,9 @@ import SwiftUI
 
 enum Theme {
     enum Colors {
-        static let accent        = Color(hex: 0x1F9E5A)
-        static let accentPressed = Color(hex: 0x178049)
-        static let accentTint    = Color(hex: 0xE7F5EE)
+        static let accent        = Color(hex: 0x5E7D4F)
+        static let accentPressed = Color(hex: 0x4D6A40)
+        static let accentTint    = Color(hex: 0xEDF1E9)
         static let background    = Color(hex: 0xFFFFFF)
         static let surface       = Color(hex: 0xF6F7F5)
         static let textPrimary   = Color(hex: 0x1C1F1D)
