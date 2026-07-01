@@ -39,7 +39,7 @@ final class MockSupabaseService: SupabaseServiceProtocol {
             code: code,
             name: name,
             members: [SessionMember(id: "user-me", name: "Amir", joinedAt: Date())],
-            status: .active,
+            status: .pending,
             createdAt: Date()
         )
         sessions.insert(session, at: 0)
@@ -48,9 +48,11 @@ final class MockSupabaseService: SupabaseServiceProtocol {
 
     func joinSession(code: String) async throws -> Session {
         try await mockDelay(0.4)
-        guard let session = sessions.first(where: { $0.code == code }) else {
+        guard var session = sessions.first(where: { $0.code == code }) else {
             throw ServiceError.sessionNotFound
         }
+        // Joining puts the user in the circle but doesn't start rolling automatically
+        session.status = .pending
         return session
     }
 
@@ -123,6 +125,18 @@ final class MockSupabaseService: SupabaseServiceProtocol {
                 ],
                 status: .active,
                 createdAt: now.addingTimeInterval(-7200)
+            ),
+            Session(
+                id: "session-3",
+                code: "XR7QP",
+                name: "Pre-game drinks",
+                members: [
+                    SessionMember(id: "user-me",    name: "Amir",   joinedAt: now.addingTimeInterval(-600)),
+                    SessionMember(id: "user-lena",   name: "Lena",   joinedAt: now.addingTimeInterval(-450)),
+                    SessionMember(id: "user-marcus", name: "Marcus", joinedAt: now.addingTimeInterval(-300)),
+                ],
+                status: .pending,
+                createdAt: now.addingTimeInterval(-600)
             ),
             Session(
                 id: "session-2",

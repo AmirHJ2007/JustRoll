@@ -1,8 +1,9 @@
 import Foundation
 
 enum SessionStatus: Equatable {
-    case active
-    case ended
+    case pending  // joined, not yet rolling
+    case active   // rolling now
+    case ended    // session window closed
 }
 
 struct SessionMember: Identifiable, Equatable {

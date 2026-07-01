@@ -30,11 +30,12 @@ enum Theme {
     }
 
     enum Typography {
-        // MARK: Handwritten — Caveat Medium — display & section headers ONLY
+        // MARK: Shantell Sans — page titles only (fun, branded, not system-default)
+        static let displayTitle  = Font.custom("ShantellSans-Medium", size: 48)  // page title
+        // MARK: Caveat Medium — section headers
         static func handwritten(size: CGFloat) -> Font {
             Font.custom("Caveat-Medium", size: size)
         }
-        static let displayTitle  = Font.custom("Caveat-Medium", size: 52)   // page title
         static let sectionHeader = Font.custom("Caveat-Medium", size: 20)   // "On JustRoll" etc.
 
         // MARK: SF Rounded — all body / UI text

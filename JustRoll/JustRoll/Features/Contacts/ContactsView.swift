@@ -1,23 +1,10 @@
 import SwiftUI
 
-// MARK: - Avatar palette
+// MARK: - Scroll offset key (pull-to-refresh)
 
-private struct AvatarTone {
-    let background: Color
-    let foreground: Color
-}
-
-private let avatarPalette: [AvatarTone] = [
-    AvatarTone(background: Color(hex: 0xD4E8CC), foreground: Color(hex: 0x2D4A24)),
-    AvatarTone(background: Color(hex: 0xDDE6C8), foreground: Color(hex: 0x3A4A24)),
-    AvatarTone(background: Color(hex: 0xE0EAD4), foreground: Color(hex: 0x34502A)),
-    AvatarTone(background: Color(hex: 0xE8E2D4), foreground: Color(hex: 0x4A4030)),
-    AvatarTone(background: Color(hex: 0xD8EDD2), foreground: Color(hex: 0x2E4A2C)),
-    AvatarTone(background: Color(hex: 0xE4DFD0), foreground: Color(hex: 0x46402C)),
-]
-
-private func avatarTone(for name: String) -> AvatarTone {
-    avatarPalette[name.unicodeScalars.reduce(0) { $0 &+ Int($1.value) } % avatarPalette.count]
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 // MARK: - View
@@ -31,6 +18,14 @@ struct ContactsView: View {
     @State private var addError: String?
     @State private var isScanning = false
 
+    // Animation
+    @State private var listVisible = false
+    @State private var showFilmDrop = false
+    @State private var pullOffset: CGFloat = 0
+    @State private var isRefreshing = false
+    @State private var addBtnScale: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var filtered: [Contact] {
         guard !searchText.isEmpty else { return viewModel.contacts }
         return viewModel.contacts.filter {
@@ -43,13 +38,14 @@ struct ContactsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack {
+            ZStack(alignment: .top) {
                 Theme.Colors.surface.ignoresSafeArea()
+
                 VStack(spacing: 0) {
-                    header
-                    if viewModel.isLoading {
+                    header.zIndex(1)
+                    if viewModel.isLoading && viewModel.contacts.isEmpty {
                         Spacer()
-                        ProgressView().tint(Theme.Colors.accent)
+                        FilmReelSpinner()
                         Spacer()
                     } else if viewModel.contacts.isEmpty {
                         emptyState
@@ -57,9 +53,24 @@ struct ContactsView: View {
                         contactList
                     }
                 }
+
+                // Film-drop celebration (anchored near add button)
+                if showFilmDrop {
+                    FilmDropOverlay(visible: $showFilmDrop)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.trailing, 24)
+                        .padding(.top, 20)
+                }
             }
             .navigationBarHidden(true)
-            .task { await viewModel.load() }
+            .task {
+                await viewModel.load()
+                if !listVisible {
+                    withAnimation(reduceMotion ? .none : .spring(response: 0.4)) {
+                        listVisible = true
+                    }
+                }
+            }
             .sheet(isPresented: $viewModel.showAddSheet) { addFriendSheet }
             .onTapGesture { searchFocused = false }
         }
@@ -68,22 +79,17 @@ struct ContactsView: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Contacts")
-                        .font(Theme.Typography.displayTitle)
-                        .foregroundColor(Theme.Colors.textPrimary)
-                        .lineSpacing(-2)
-                    if !viewModel.contacts.isEmpty {
-                        let n = connected.count
-                        Text("\(n) \(n == 1 ? "friend" : "friends") on JustRoll")
-                            .font(Theme.Typography.caption)
-                            .foregroundColor(Theme.Colors.textMuted)
+        PageHeader(
+            title: "Contacts",
+            subtitle: viewModel.contacts.isEmpty ? nil : "\(connected.count) \(connected.count == 1 ? "friend" : "friends") on JustRoll",
+            trailing: {
+                Button {
+                    withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) { addBtnScale = 0.88 }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) { addBtnScale = 1 }
                     }
-                }
-                Spacer()
-                Button { viewModel.showAddSheet = true } label: {
+                    viewModel.showAddSheet = true
+                } label: {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(Theme.Colors.accent)
@@ -91,19 +97,16 @@ struct ContactsView: View {
                         .background(Theme.Colors.accentTint)
                         .clipShape(Circle())
                 }
+                .scaleEffect(reduceMotion ? 1 : addBtnScale)
                 .padding(.top, 4)
+            },
+            footer: {
+                if !connected.isEmpty && searchText.isEmpty {
+                    crewStrip
+                }
+                searchBar
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
-
-            if !connected.isEmpty && searchText.isEmpty {
-                crewStrip
-            }
-
-            searchBar
-        }
-        .background(Theme.Colors.background)
+        )
     }
 
     // MARK: - Crew strip
@@ -111,15 +114,23 @@ struct ContactsView: View {
     private var crewStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 18) {
-                ForEach(connected) { contact in
+                ForEach(Array(connected.enumerated()), id: \.element.id) { idx, contact in
                     VStack(spacing: 6) {
-                        avatarCircle(name: contact.name, size: 46)
+                        AvatarView(name: contact.name, size: 46)
                         Text(contact.name.components(separatedBy: " ").first ?? contact.name)
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundColor(Theme.Colors.textSecondary)
                             .lineLimit(1)
                     }
                     .frame(width: 52)
+                    .opacity(listVisible ? 1 : 0)
+                    .offset(x: listVisible ? 0 : 12)
+                    .animation(
+                        reduceMotion ? .none :
+                            .spring(response: 0.45, dampingFraction: 0.8)
+                            .delay(0.05 + Double(idx) * 0.05),
+                        value: listVisible
+                    )
                 }
             }
             .padding(.horizontal, 20)
@@ -141,27 +152,20 @@ struct ContactsView: View {
                 .focused($searchFocused)
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(Theme.Colors.textMuted)
+                    Image(systemName: "xmark.circle.fill").foregroundColor(Theme.Colors.textMuted)
                 }
-                .transition(.opacity)
+                .transition(.opacity.combined(with: .scale))
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(searchFocused ? Theme.Colors.background : Theme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .shadow(
-            color: searchFocused ? .black.opacity(0.08) : .clear,
-            radius: searchFocused ? 10 : 0,
-            x: 0, y: searchFocused ? 3 : 0
-        )
+        .shadow(color: searchFocused ? .black.opacity(0.08) : .clear,
+                radius: searchFocused ? 10 : 0, x: 0, y: searchFocused ? 3 : 0)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(
-                    searchFocused ? Theme.Colors.accent.opacity(0.35) : Color.clear,
-                    lineWidth: 1
-                )
+                .stroke(searchFocused ? Theme.Colors.accent.opacity(0.35) : Color.clear, lineWidth: 1)
         )
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -173,24 +177,81 @@ struct ContactsView: View {
 
     private var contactList: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                if !connected.isEmpty {
-                    contactSection(title: "On JustRoll", contacts: connected, muted: false)
+            VStack(spacing: 0) {
+                // Pull-to-refresh offset detector
+                GeometryReader { geo in
+                    Color.clear.preference(
+                        key: ScrollOffsetKey.self,
+                        value: geo.frame(in: .named("contactsScroll")).minY
+                    )
                 }
-                if !notConnected.isEmpty {
-                    contactSection(title: "Invite them", contacts: notConnected, muted: true)
+                .frame(height: 0)
+
+                // Film reel pull indicator
+                if isRefreshing || pullOffset > 8 {
+                    HStack {
+                        Spacer()
+                        FilmReelSpinner(
+                            isSpinning: isRefreshing,
+                            progress: isRefreshing ? 1 : min(pullOffset / 60, 1)
+                        )
+                        Spacer()
+                    }
+                    .frame(height: isRefreshing ? 64 : min(pullOffset, 64))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isRefreshing)
                 }
+
+                VStack(spacing: 24) {
+                    if !connected.isEmpty {
+                        contactSection(title: "On JustRoll",
+                                       contacts: connected,
+                                       globalOffset: 0,
+                                       muted: false)
+                    }
+                    if !notConnected.isEmpty {
+                        contactSection(title: "Invite them",
+                                       contacts: notConnected,
+                                       globalOffset: connected.count,
+                                       muted: true)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 40)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 40)
+        }
+        .coordinateSpace(name: "contactsScroll")
+        .onPreferenceChange(ScrollOffsetKey.self) { offset in
+            guard !isRefreshing else { return }
+            pullOffset = max(0, offset)
+            if pullOffset > 64 { triggerRefresh() }
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 4).onChanged { _ in searchFocused = false }
         )
     }
 
-    private func contactSection(title: String, contacts: [Contact], muted: Bool) -> some View {
+    private func triggerRefresh() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Task {
+            await viewModel.load()
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                isRefreshing = false
+                pullOffset = 0
+            }
+        }
+    }
+
+    // MARK: - Section builder
+
+    private func contactSection(
+        title: String,
+        contacts: [Contact],
+        globalOffset: Int,
+        muted: Bool
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Text(title.uppercased())
@@ -207,13 +268,26 @@ struct ContactsView: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(contacts.enumerated()), id: \.element.id) { idx, contact in
-                    ContactRowView(contact: contact) {
+                    let delay = Double(globalOffset + idx) * 0.04
+
+                    ContactRowView(
+                        contact: contact,
+                        animationDelay: delay
+                    ) {
                         viewModel.showAddSheet = true
                     } onRemove: {
                         Task { await viewModel.removeContact(contact) }
                     }
                     .padding(.horizontal, 16)
                     .background(muted ? Theme.Colors.background.opacity(0.92) : Theme.Colors.background)
+                    // Stagger entrance
+                    .opacity(listVisible ? 1 : 0)
+                    .offset(y: listVisible ? 0 : 18)
+                    .animation(
+                        reduceMotion ? .none :
+                            .spring(response: 0.5, dampingFraction: 0.82).delay(delay),
+                        value: listVisible
+                    )
 
                     if idx < contacts.count - 1 {
                         Rectangle()
@@ -229,27 +303,9 @@ struct ContactsView: View {
                 RoundedRectangle(cornerRadius: 16)
                     .stroke(muted ? Theme.Colors.border : Color.clear, lineWidth: 0.5)
             )
-            .shadow(
-                color: muted ? .clear : .black.opacity(0.04),
-                radius: 8, x: 0, y: 2
-            )
+            .shadow(color: muted ? .clear : .black.opacity(0.04), radius: 8, x: 0, y: 2)
             .opacity(muted ? 0.85 : 1)
         }
-    }
-
-    // MARK: - Avatar helper
-
-    @ViewBuilder
-    func avatarCircle(name: String, size: CGFloat) -> some View {
-        let tone = avatarTone(for: name)
-        Circle()
-            .fill(tone.background)
-            .frame(width: size, height: size)
-            .overlay(
-                Text(String(name.prefix(1)).uppercased())
-                    .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                    .foregroundColor(tone.foreground)
-            )
     }
 
     // MARK: - Empty state
@@ -299,8 +355,12 @@ struct ContactsView: View {
                         isAdding = true; addError = nil
                         do {
                             try await viewModel.addContact(username: addUsername)
-                            viewModel.showAddSheet = false; addUsername = ""
-                        } catch { addError = error.localizedDescription }
+                            viewModel.showAddSheet = false
+                            addUsername = ""
+                            showFilmDrop = true          // 🎞 celebrate
+                        } catch {
+                            addError = error.localizedDescription
+                        }
                         isAdding = false
                     }
                 }
@@ -354,12 +414,24 @@ struct ContactsView: View {
 
 struct ContactRowView: View {
     let contact: Contact
+    var animationDelay: Double = 0
     let onStartRoll: () -> Void
     let onRemove: () -> Void
 
+    @State private var avatarScale: CGFloat = 0.55
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: 14) {
-            avatarCircle
+            AvatarView(name: contact.name, size: 46)
+                .scaleEffect(avatarScale)
+                .onAppear {
+                    guard !reduceMotion else { avatarScale = 1; return }
+                    withAnimation(
+                        .spring(response: 0.4, dampingFraction: 0.6)
+                        .delay(animationDelay + 0.08)
+                    ) { avatarScale = 1 }
+                }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(contact.name)
@@ -406,19 +478,9 @@ struct ContactRowView: View {
         }
         .padding(.vertical, 14)
         .contentShape(Rectangle())
+        .rowPressEffect()
     }
 
-    private var avatarCircle: some View {
-        let tone = avatarTone(for: contact.name)
-        return Circle()
-            .fill(tone.background)
-            .frame(width: 46, height: 46)
-            .overlay(
-                Text(String(contact.name.prefix(1)).uppercased())
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
-                    .foregroundColor(tone.foreground)
-            )
-    }
 }
 
 #Preview {

@@ -15,7 +15,7 @@ final class SessionsViewModel {
         self.service = service
     }
 
-    var activeSessions: [Session] { sessions.filter { $0.status == .active } }
+    var activeSessions: [Session] { sessions.filter { $0.status == .active || $0.status == .pending } }
     var endedSessions:  [Session] { sessions.filter { $0.status == .ended } }
 
     func load() async {

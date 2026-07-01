@@ -10,6 +10,7 @@
 		AD000001 /* JustRollApp.swift in Sources */      = {isa = PBXBuildFile; fileRef = AC000001; };
 		AD000002 /* Assets.xcassets in Resources */      = {isa = PBXBuildFile; fileRef = AC000002; };
 		AD000090 /* Caveat-Medium.ttf in Resources */    = {isa = PBXBuildFile; fileRef = AC000090; };
+		AD000092 /* ShantellSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AC000092; };
 		AD000091 /* Info.plist in Resources */           = {isa = PBXBuildFile; fileRef = AC000091; };
 		AD000010 /* RootTabView.swift in Sources */      = {isa = PBXBuildFile; fileRef = AC000010; };
 		AD000020 /* Theme.swift in Sources */            = {isa = PBXBuildFile; fileRef = AC000020; };
@@ -30,6 +31,7 @@
 		AD000071 /* UnsentViewModel.swift in Sources */  = {isa = PBXBuildFile; fileRef = AC000071; };
 		AD000072 /* ReviewPhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000072; };
 		AD000080 /* SettingsView.swift in Sources */     = {isa = PBXBuildFile; fileRef = AC000080; };
+		AD000093 /* NearbyDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000093; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,7 +56,9 @@
 		AC000071 /* UnsentViewModel.swift */         = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsentViewModel.swift; sourceTree = "<group>"; };
 		AC000072 /* ReviewPhotoGridView.swift */     = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPhotoGridView.swift; sourceTree = "<group>"; };
 		AC000080 /* SettingsView.swift */            = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		AC000093 /* NearbyDiscoveryView.swift */     = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyDiscoveryView.swift; sourceTree = "<group>"; };
 		AC000090 /* Caveat-Medium.ttf */             = {isa = PBXFileReference; lastKnownFileType = file; path = "Caveat-Medium.ttf"; sourceTree = "<group>"; };
+		AC000092 /* ShantellSans-Medium.ttf */       = {isa = PBXFileReference; lastKnownFileType = file; path = "ShantellSans-Medium.ttf"; sourceTree = "<group>"; };
 		AC000091 /* Info.plist */                    = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000004 /* JustRoll.app */                  = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = JustRoll.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -90,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				AC000090 /* Caveat-Medium.ttf */,
+				AC000092 /* ShantellSans-Medium.ttf */,
 			);
 			path = Fonts;
 			sourceTree = "<group>";
@@ -154,8 +159,17 @@
 				AB000007 /* Contacts */,
 				AB000008 /* Unsent */,
 				AB000009 /* Settings */,
+				AB000011 /* Nearby */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		AB000011 /* Nearby */ = {
+			isa = PBXGroup;
+			children = (
+				AC000093 /* NearbyDiscoveryView.swift */,
+			);
+			path = Nearby;
 			sourceTree = "<group>";
 		};
 		AB000006 /* Sessions */ = {
@@ -256,6 +270,7 @@
 			files = (
 				AD000002 /* Assets.xcassets in Resources */,
 				AD000090 /* Caveat-Medium.ttf in Resources */,
+				AD000092 /* ShantellSans-Medium.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -286,6 +301,7 @@
 				AD000071 /* UnsentViewModel.swift in Sources */,
 				AD000072 /* ReviewPhotoGridView.swift in Sources */,
 				AD000080 /* SettingsView.swift in Sources */,
+				AD000093 /* NearbyDiscoveryView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

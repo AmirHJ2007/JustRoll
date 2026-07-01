@@ -2,22 +2,34 @@ import SwiftUI
 
 struct SessionsView: View {
     @State private var viewModel = SessionsViewModel()
+    @State private var listVisible = false
+    @State private var joinCode = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    ProgressView()
-                } else if viewModel.sessions.isEmpty {
-                    emptyState
-                } else {
-                    sessionsList
+            ZStack(alignment: .top) {
+                Theme.Colors.surface.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    header.zIndex(1)
+                    if viewModel.isLoading && viewModel.sessions.isEmpty {
+                        Spacer()
+                        FilmReelSpinner()
+                        Spacer()
+                    } else if viewModel.sessions.isEmpty {
+                        emptyState
+                    } else {
+                        mainScroll
+                    }
                 }
             }
-            .navigationTitle("Sessions")
-            .background(Theme.Colors.background.ignoresSafeArea())
-            .themedNavBar()
-            .task { await viewModel.load() }
+            .navigationBarHidden(true)
+            .task {
+                await viewModel.load()
+                withAnimation(reduceMotion ? .none : .spring(response: 0.45)) {
+                    listVisible = true
+                }
+            }
             .sheet(isPresented: $viewModel.showStartSheet) {
                 StartRollSheet(viewModel: viewModel)
             }
@@ -32,79 +44,164 @@ struct SessionsView: View {
         }
     }
 
+    // MARK: - Header
+
+    private var header: some View {
+        PageHeader(title: "My Circles", subtitle: subtitleText) {
+            Button { viewModel.showStartSheet = true } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 38, height: 38)
+                    .background(Theme.Colors.accent)
+                    .clipShape(Circle())
+                    .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 8, x: 0, y: 3)
+            }
+            .buttonStyle(SpringTapStyle(scaleAmount: 0.86))
+            .padding(.top, 4)
+        }
+    }
+
+    private var subtitleText: String? {
+        guard !viewModel.sessions.isEmpty else { return nil }
+        let count = viewModel.sessions.filter { $0.status == .active }.count
+        if count == 0 { return "No circles rolling" }
+        return count == 1 ? "1 rolling now" : "\(count) rolling now"
+    }
+
+    // MARK: - Join bar
+
+    private var joinBar: some View {
+        HStack(spacing: 0) {
+            TextField("Enter circle code to join", text: $joinCode)
+                .font(.system(size: 14, weight: .regular, design: .rounded))
+                .foregroundColor(Theme.Colors.textPrimary)
+                .textInputAutocapitalization(.characters)
+                .disableAutocorrection(true)
+                .padding(.leading, 18)
+                .padding(.vertical, 15)
+
+            Spacer(minLength: 8)
+
+            Button {
+                let code = joinCode.trimmingCharacters(in: .whitespaces)
+                guard !code.isEmpty else { return }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Task {
+                    do {
+                        _ = try await viewModel.joinSession(code: code)
+                        joinCode = ""
+                    } catch {
+                        viewModel.errorMessage = error.localizedDescription
+                    }
+                }
+            } label: {
+                Image(systemName: "arrow.right.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(
+                        joinCode.trimmingCharacters(in: .whitespaces).isEmpty
+                            ? Theme.Colors.textMuted : Theme.Colors.accent
+                    )
+                    .animation(.easeInOut(duration: 0.2), value: joinCode.isEmpty)
+            }
+            .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
+            .disabled(joinCode.trimmingCharacters(in: .whitespaces).isEmpty)
+            .padding(.trailing, 8)
+        }
+        .background(Theme.Colors.background)
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Theme.Colors.border, lineWidth: 0.5))
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 2)
+    }
+
+    // MARK: - Main scroll
+
+    private var mainScroll: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                joinBar
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                    .padding(.bottom, 20)
+
+                if !viewModel.activeSessions.isEmpty {
+                    SectionHeader(title: "Circles")
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 10)
+
+                    VStack(spacing: 14) {
+                        ForEach(Array(viewModel.activeSessions.enumerated()), id: \.element.id) { idx, session in
+                            CircleCard(session: session, viewModel: viewModel)
+                                .padding(.horizontal, 16)
+                                .opacity(listVisible ? 1 : 0)
+                                .offset(y: listVisible ? 0 : 22)
+                                .animation(
+                                    reduceMotion ? .none :
+                                        .spring(response: 0.5, dampingFraction: 0.82)
+                                        .delay(Double(idx) * 0.08),
+                                    value: listVisible
+                                )
+                        }
+                    }
+                }
+
+                Spacer().frame(height: 40)
+            }
+        }
+    }
+
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: Theme.Spacing.xl) {
+        VStack(spacing: 0) {
+            joinBar
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+
             Spacer()
 
-            Image(systemName: "camera.fill")
-                .font(.system(size: 52))
-                .foregroundColor(Theme.Colors.textMuted)
+            VStack(spacing: Theme.Spacing.xl) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.Colors.accentTint)
+                        .frame(width: 106, height: 106)
+                    Image(systemName: "person.3.sequence.fill")
+                        .font(.system(size: 38))
+                        .foregroundColor(Theme.Colors.accent)
+                }
 
-            VStack(spacing: Theme.Spacing.sm) {
-                Text("No rolls yet")
-                    .font(Theme.Typography.heading)
-                    .foregroundColor(Theme.Colors.textPrimary)
-                Text("Start one with your crew and photos will find their way to everyone automatically.")
-                    .font(Theme.Typography.body)
-                    .foregroundColor(Theme.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, Theme.Spacing.xxl)
+                VStack(spacing: Theme.Spacing.sm) {
+                    Text("No circles yet")
+                        .font(Theme.Typography.title)
+                        .foregroundColor(Theme.Colors.textPrimary)
+                    Text("Start one and everyone's photos\nfind their way to the whole crew.")
+                        .font(Theme.Typography.body)
+                        .foregroundColor(Theme.Colors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
             }
 
-            RollButton(title: "Start a roll") {
-                viewModel.showStartSheet = true
+            Spacer().frame(height: Theme.Spacing.xxl)
+
+            Button { viewModel.showStartSheet = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .bold))
+                    Text("Start your first circle")
+                        .font(Theme.Typography.label)
+                }
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .background(Theme.Colors.accent)
+                .clipShape(Capsule())
+                .shadow(color: Theme.Colors.accent.opacity(0.3), radius: 16, x: 0, y: 6)
             }
-            .padding(.horizontal, Theme.Spacing.xl)
+            .buttonStyle(SpringTapStyle(scaleAmount: 0.97))
+            .padding(.horizontal, 32)
 
             Spacer()
         }
-    }
-
-    // MARK: - Sessions list
-
-    private var sessionsList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Always-visible CTA
-                RollButton(title: "Start a roll") {
-                    viewModel.showStartSheet = true
-                }
-                .padding(.horizontal, Theme.Spacing.lg)
-                .padding(.top, Theme.Spacing.lg)
-                .padding(.bottom, Theme.Spacing.xl)
-
-                if !viewModel.activeSessions.isEmpty {
-                    sectionLabel("Active")
-                    ForEach(viewModel.activeSessions) { session in
-                        SessionRowView(session: session, viewModel: viewModel)
-                            .padding(.horizontal, Theme.Spacing.lg)
-                            .padding(.bottom, Theme.Spacing.sm)
-                    }
-                    Spacer().frame(height: Theme.Spacing.lg)
-                }
-
-                if !viewModel.endedSessions.isEmpty {
-                    sectionLabel("Past rolls")
-                    ForEach(viewModel.endedSessions) { session in
-                        SessionRowView(session: session, viewModel: viewModel)
-                            .padding(.horizontal, Theme.Spacing.lg)
-                            .padding(.bottom, Theme.Spacing.sm)
-                    }
-                }
-
-                Spacer().frame(height: Theme.Spacing.xxl)
-            }
-        }
-    }
-
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(Theme.Typography.caption)
-            .foregroundColor(Theme.Colors.textMuted)
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.xs)
     }
 }
 

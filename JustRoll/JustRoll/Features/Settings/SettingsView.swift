@@ -1,156 +1,282 @@
 import SwiftUI
 
+// MARK: - Reusable row
+
+struct SettingsRow: View {
+    let icon: String
+    let label: String
+    var iconColor: Color = Theme.Colors.accent
+    var value: String? = nil
+    var valueColor: Color = Theme.Colors.textSecondary
+    var showChevron: Bool = false
+    var tinted: Bool = false
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundColor(iconColor)
+                .frame(width: 22, height: 22)
+
+            Text(label)
+                .font(Theme.Typography.label)
+                .foregroundColor(Theme.Colors.textPrimary)
+
+            Spacer()
+
+            if let v = value {
+                Text(v)
+                    .font(Theme.Typography.caption)
+                    .foregroundColor(valueColor)
+            }
+
+            if showChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.Colors.textMuted)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(minHeight: 50)
+        .background(tinted ? Theme.Colors.accentTint : Color.clear)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Reusable toggle row
+
+struct SettingsToggleRow: View {
+    let icon: String
+    let label: String
+    let subtitle: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundColor(Theme.Colors.accent)
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(Theme.Typography.label)
+                    .foregroundColor(Theme.Colors.textPrimary)
+                Text(subtitle)
+                    .font(Theme.Typography.caption)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(Theme.Colors.accent)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(minHeight: 50)
+        .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Settings view
+
 struct SettingsView: View {
     @State private var nudgesEnabled = true
     @State private var newPhotosEnabled = true
 
+    private let daysLeft = 28
+    private let trialTotal = 30
+
     var body: some View {
         NavigationStack {
-            List {
-                accountSection
-                subscriptionSection
-                notificationsSection
-                permissionsSection
-                signOutSection
+            ZStack(alignment: .top) {
+                Theme.Colors.surface.ignoresSafeArea()
+
+                VStack(spacing: 0) {
+                    header.zIndex(1)
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            profileCard
+                            subscriptionCard
+                            notificationsCard
+                            permissionsCard
+                            signOutCard
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 110)
+                    }
+                }
             }
-            .navigationTitle("Settings")
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
-            .background(Theme.Colors.surface.ignoresSafeArea())
-            .themedNavBar()
+            .navigationBarHidden(true)
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Header
 
-    private var accountSection: some View {
-        Section {
-            settingsRow(icon: "person.circle", label: "Profile", value: "Amir")
-            settingsRow(icon: "envelope",      label: "Email",   value: "amir@example.com")
-        } header: { sectionHeader("Account") }
-        .listRowBackground(Theme.Colors.background)
-    }
-
-    private var subscriptionSection: some View {
-        Section {
-            HStack {
-                Label {
-                    Text("Free trial")
-                        .font(Theme.Typography.label)
-                        .foregroundColor(Theme.Colors.textPrimary)
-                } icon: {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(Theme.Colors.accent)
-                }
-                Spacer()
-                Text("28 days left")
-                    .font(Theme.Typography.caption)
-                    .foregroundColor(Theme.Colors.accent)
-            }
-            HStack {
-                Label {
-                    Text("Upgrade to JustRoll+")
-                        .font(Theme.Typography.label)
-                        .foregroundColor(Theme.Colors.textPrimary)
-                } icon: {
-                    Image(systemName: "dollarsign.circle")
-                        .foregroundColor(Theme.Colors.accent)
-                }
-                Spacer()
-                Text("$3/mo")
-                    .font(Theme.Typography.caption)
-                    .foregroundColor(Theme.Colors.textSecondary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Theme.Colors.textMuted)
-            }
-        } header: { sectionHeader("Subscription") }
-        .listRowBackground(Theme.Colors.background)
-    }
-
-    private var notificationsSection: some View {
-        Section {
-            Toggle(isOn: $newPhotosEnabled) {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("New photos arrived")
-                            .font(Theme.Typography.label)
-                            .foregroundColor(Theme.Colors.textPrimary)
-                        Text("When friends' photos land in your roll")
-                            .font(Theme.Typography.caption)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                    }
-                } icon: {
-                    Image(systemName: "bell.fill")
-                        .foregroundColor(Theme.Colors.accent)
-                }
-            }
-            .tint(Theme.Colors.accent)
-
-            Toggle(isOn: $nudgesEnabled) {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Still hanging out?")
-                            .font(Theme.Typography.label)
-                            .foregroundColor(Theme.Colors.textPrimary)
-                        Text("Nudge every 3–4 hrs to keep the roll open")
-                            .font(Theme.Typography.caption)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                    }
-                } icon: {
-                    Image(systemName: "clock.fill")
-                        .foregroundColor(Theme.Colors.accent)
-                }
-            }
-            .tint(Theme.Colors.accent)
-        } header: { sectionHeader("Notifications") }
-        .listRowBackground(Theme.Colors.background)
-    }
-
-    private var permissionsSection: some View {
-        Section {
-            settingsRow(icon: "photo.on.rectangle", label: "Photo library",      value: "Full access")
-            settingsRow(icon: "location",           label: "Location",           value: "While using")
-            settingsRow(icon: "bell.badge",         label: "Push notifications", value: "Allowed")
-        } header: { sectionHeader("Permissions") }
-        .listRowBackground(Theme.Colors.background)
-    }
-
-    private var signOutSection: some View {
-        Section {
-            Button(role: .destructive) {
-                // TODO: service.signOut()
-            } label: {
-                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
-                    .font(Theme.Typography.label)
-            }
-        }
-        .listRowBackground(Theme.Colors.background)
+    private var header: some View {
+        PageHeader(title: "Settings", subtitle: "Account & preferences")
     }
 
     // MARK: - Helpers
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(Theme.Typography.caption)
-            .foregroundColor(Theme.Colors.textMuted)
-            .textCase(nil)
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(Theme.Colors.border)
+            .frame(height: 0.5)
+            .padding(.leading, 52)
     }
 
-    private func settingsRow(icon: String, label: String, value: String) -> some View {
-        HStack {
-            Label {
-                Text(label)
-                    .font(Theme.Typography.label)
-                    .foregroundColor(Theme.Colors.textPrimary)
-            } icon: {
-                Image(systemName: icon)
-                    .foregroundColor(Theme.Colors.accent)
+    private func card<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: 0) { content() }
+            .background(Theme.Colors.background)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.card)
+                    .stroke(Theme.Colors.border, lineWidth: 0.5)
+            )
+    }
+
+    // MARK: - Cards
+
+    private var profileCard: some View {
+        card {
+            HStack(spacing: 16) {
+                AvatarView(name: "Amir", size: 56)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Amir")
+                        .font(Theme.Typography.heading)
+                        .foregroundColor(Theme.Colors.textPrimary)
+                    Text(verbatim: "amir@example.com")
+                        .font(Theme.Typography.caption)
+                        .foregroundStyle(Theme.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Theme.Colors.textMuted)
             }
-            Spacer()
-            Text(value)
-                .font(Theme.Typography.caption)
-                .foregroundColor(Theme.Colors.textSecondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 18)
+            .contentShape(Rectangle())
+        }
+    }
+
+    private var subscriptionCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Subscription")
+            card {
+                // Free trial with progress indicator
+                HStack(spacing: 14) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.Colors.accent)
+                        .frame(width: 22, height: 22)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Free trial")
+                            .font(Theme.Typography.label)
+                            .foregroundColor(Theme.Colors.textPrimary)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Theme.Colors.border)
+                                    .frame(height: 3)
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(Theme.Colors.accent.opacity(0.7))
+                                    .frame(
+                                        width: geo.size.width * CGFloat(trialTotal - daysLeft) / CGFloat(trialTotal),
+                                        height: 3
+                                    )
+                            }
+                        }
+                        .frame(height: 3)
+                    }
+
+                    Spacer()
+
+                    Text("\(daysLeft) days left")
+                        .font(Theme.Typography.caption)
+                        .foregroundColor(Theme.Colors.accent)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(minHeight: 50)
+
+                rowDivider
+
+                // Upgrade row — faint green tint signals the money action
+                SettingsRow(
+                    icon: "dollarsign.circle",
+                    label: "Upgrade to JustRoll+",
+                    value: "$3/mo",
+                    showChevron: true,
+                    tinted: true
+                )
+            }
+        }
+    }
+
+    private var notificationsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Notifications")
+            card {
+                SettingsToggleRow(
+                    icon: "bell.fill",
+                    label: "New photos arrived",
+                    subtitle: "When friends' photos land in your roll",
+                    isOn: $newPhotosEnabled
+                )
+                rowDivider
+                SettingsToggleRow(
+                    icon: "clock.fill",
+                    label: "Still hanging out?",
+                    subtitle: "Nudge every 3–4 hrs to keep the roll open",
+                    isOn: $nudgesEnabled
+                )
+            }
+        }
+    }
+
+    private var permissionsCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Permissions")
+            card {
+                SettingsRow(icon: "photo.on.rectangle", label: "Photo library",      value: "Full access")
+                rowDivider
+                SettingsRow(icon: "location",           label: "Location",           value: "While using")
+                rowDivider
+                SettingsRow(icon: "bell.badge",         label: "Push notifications", value: "Allowed")
+            }
+        }
+    }
+
+    private var signOutCard: some View {
+        card {
+            Button(role: .destructive) {
+                // TODO: service.signOut()
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.Colors.danger)
+                        .frame(width: 22, height: 22)
+                    Text("Sign out")
+                        .font(Theme.Typography.label)
+                        .foregroundColor(Theme.Colors.danger)
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(minHeight: 50)
+                .contentShape(Rectangle())
+            }
         }
     }
 }

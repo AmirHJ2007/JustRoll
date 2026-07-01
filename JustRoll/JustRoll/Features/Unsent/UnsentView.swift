@@ -7,18 +7,29 @@ struct UnsentView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if viewModel.isLoading {
-                    ProgressView()
-                } else if viewModel.pendingPhotos.isEmpty {
-                    emptyState
-                } else {
-                    batchList
+            ZStack(alignment: .top) {
+                Theme.Colors.surface.ignoresSafeArea()
+                VStack(spacing: 0) {
+                    PageHeader(
+                        title: "Unsent",
+                        subtitle: viewModel.pendingPhotos.isEmpty ? nil :
+                            "\(viewModel.pendingPhotos.count) \(viewModel.pendingPhotos.count == 1 ? "photo" : "photos") waiting"
+                    )
+                    .zIndex(1)
+                    Group {
+                        if viewModel.isLoading {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        } else if viewModel.pendingPhotos.isEmpty {
+                            emptyState
+                        } else {
+                            batchList
+                        }
+                    }
                 }
             }
-            .navigationTitle("Unsent")
-            .background(Theme.Colors.background.ignoresSafeArea())
-            .themedNavBar()
+            .navigationBarHidden(true)
             .task { await viewModel.load() }
             .navigationDestination(isPresented: $showingReview) {
                 if let batch = reviewBatch {
