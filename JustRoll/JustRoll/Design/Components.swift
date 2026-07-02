@@ -18,10 +18,12 @@ struct RollButton: View {
                         .foregroundColor(.white)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 52)
             .background(Theme.Colors.accent)
             .clipShape(Capsule())
+            .shadow(color: Theme.Colors.accent.opacity(0.3), radius: 16, x: 0, y: 6)
         }
+        .buttonStyle(SpringTapStyle(scaleAmount: 0.97))
         .disabled(isLoading)
     }
 }

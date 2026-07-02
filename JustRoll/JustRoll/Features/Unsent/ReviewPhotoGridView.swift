@@ -1,4 +1,5 @@
 import SwiftUI
+import Photos
 
 struct ReviewPhotoGridView: View {
     @State private var photos: [PendingPhoto]
@@ -16,7 +17,6 @@ struct ReviewPhotoGridView: View {
     private var selectedPhotos: [PendingPhoto] { photos.filter(\.isSelected) }
     private var selectedCount: Int { selectedPhotos.count }
 
-    // Palette for mock photo thumbnails — replaced by PHAsset thumbnails in real build.
     private let mockPalette: [Color] = [
         Color(hex: 0x8EC5A2), Color(hex: 0xF4A261), Color(hex: 0xA8DADC),
         Color(hex: 0xC8A2C8), Color(hex: 0xF7D59C), Color(hex: 0xE8A598),
@@ -68,15 +68,8 @@ struct ReviewPhotoGridView: View {
         let color = mockPalette[photo.mockColorSeed % mockPalette.count]
 
         return ZStack(alignment: .topTrailing) {
-            // TODO: PhotoKit — replace with AsyncImage / thumbnail from PHAsset
-            Rectangle()
-                .fill(color)
+            PhotoThumbnailCell(photo: photo, fallbackColor: color)
                 .aspectRatio(1, contentMode: .fit)
-                .overlay(
-                    Image(systemName: "photo")
-                        .foregroundColor(.white.opacity(0.6))
-                        .font(.system(size: 22))
-                )
 
             if !photo.isSelected {
                 Color.black.opacity(0.45)
@@ -121,6 +114,68 @@ struct ReviewPhotoGridView: View {
     private var sendTitle: String {
         guard selectedCount > 0 else { return "Nothing selected" }
         return "Send \(selectedCount) \(selectedCount == 1 ? "photo" : "photos")"
+    }
+}
+
+// MARK: - PhotoThumbnailCell
+
+struct PhotoThumbnailCell: View {
+    let photo: PendingPhoto
+    let fallbackColor: Color
+    @State private var thumbnail: UIImage?
+
+    var body: some View {
+        ZStack {
+            Group {
+                if let img = thumbnail {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Rectangle()
+                        .fill(fallbackColor)
+                        .overlay(
+                            Group {
+                                if photo.asset != nil {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Image(systemName: photo.isVideo ? "video.fill" : "photo")
+                                        .foregroundColor(.white.opacity(0.6))
+                                        .font(.system(size: 22))
+                                }
+                            }
+                        )
+                }
+            }
+            .clipped()
+
+            // Video indicator
+            if photo.isVideo {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2)
+            }
+        }
+        .task(id: photo.id) {
+            guard let asset = photo.asset else { return }
+            thumbnail = await loadThumbnail(asset: asset)
+        }
+    }
+
+    private func loadThumbnail(asset: PHAsset) async -> UIImage? {
+        await withCheckedContinuation { cont in
+            let size = CGSize(width: 300, height: 300)
+            let opts = PHImageRequestOptions()
+            opts.deliveryMode = .highQualityFormat  // single callback, no double-resume risk
+            opts.isNetworkAccessAllowed = true
+            PHImageManager.default().requestImage(
+                for: asset, targetSize: size,
+                contentMode: .aspectFill, options: opts
+            ) { img, _ in
+                cont.resume(returning: img)
+            }
+        }
     }
 }
 

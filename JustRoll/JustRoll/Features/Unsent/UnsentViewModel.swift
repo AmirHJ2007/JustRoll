@@ -4,7 +4,7 @@ import Observation
 @Observable
 @MainActor
 final class UnsentViewModel {
-    var pendingPhotos: [PendingPhoto] = []
+    var pendingBatches: [PendingBatch] = []
     var isLoading = false
     var isSending = false
     var errorMessage: String?
@@ -15,21 +15,15 @@ final class UnsentViewModel {
         self.service = service
     }
 
-    // Groups pending photos by session for the Unsent list.
-    var groupedBySession: [(sessionName: String, sessionId: String, photos: [PendingPhoto])] {
-        let grouped = Dictionary(grouping: pendingPhotos, by: \.sessionId)
-        return grouped.map { sessionId, photos in
-            (sessionName: photos.first?.sessionName ?? "Roll", sessionId: sessionId, photos: photos)
-        }.sorted { $0.sessionName < $1.sessionName }
-    }
+    var totalPhotoCount: Int { pendingBatches.reduce(0) { $0 + $1.photos.count } }
+
+    // Legacy — ReviewPhotoGridView takes [PendingPhoto] directly from the batch
+    var pendingPhotos: [PendingPhoto] { pendingBatches.flatMap(\.photos) }
 
     func load() async {
         isLoading = true
-        // TODO: PhotoKit — when wiring up real photo collection, call collectPhotos(for:) here
-        // using the session window timestamps. The review-and-deselect screen is the required
-        // privacy gate before any upload occurs.
         do {
-            pendingPhotos = try await service.fetchPendingPhotos()
+            pendingBatches = try await service.fetchPendingBatches()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -40,11 +34,14 @@ final class UnsentViewModel {
         guard let sessionId = photos.first?.sessionId else { return }
         isSending = true
         do {
-            // TODO: Supabase — uploadPhotos tags each photo per recipient using
-            // Session.recipients(at: photo.captureDate). Late joiners only get photos
-            // taken after they joined.
             try await service.uploadPhotos(photos, sessionId: sessionId)
-            pendingPhotos.removeAll { p in photos.contains(where: { $0.id == p.id }) }
+            let sentIds = Set(photos.map(\.id))
+            if let idx = pendingBatches.firstIndex(where: { $0.id == sessionId }) {
+                pendingBatches[idx].photos.removeAll { sentIds.contains($0.id) }
+                if pendingBatches[idx].photos.isEmpty {
+                    pendingBatches.remove(at: idx)
+                }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }

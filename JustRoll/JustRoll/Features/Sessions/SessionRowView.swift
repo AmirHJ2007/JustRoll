@@ -1,28 +1,38 @@
 import SwiftUI
 
-// MARK: - MemberAvatarNode
+// MARK: - MemberAvatar
 
-struct MemberAvatarNode: View {
+struct MemberAvatar: View {
     let member: SessionMember
+    var isCurrentUserRolling: Bool = false  // local override from CircleCard's @State
     @State private var appeared = false
 
+    private static let avatarSize: CGFloat = 64
+    private static let dotSize:    CGFloat = 14
+
+    private var dotColor: Color {
+        // Rolling state takes priority — if you're rolling you're clearly still in the session
+        if member.isRolling || isCurrentUserRolling { return Color(hex: 0x50C878) }
+        if !member.isActive { return Theme.Colors.textMuted.opacity(0.5) }
+        return Theme.Colors.textMuted.opacity(0.45)
+    }
+
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 7) {
             ZStack(alignment: .bottomTrailing) {
-                AvatarView(name: member.name, size: 38)
+                AvatarView(name: member.name, size: Self.avatarSize)
 
                 Circle()
-                    .fill(member.isActive ? Color(hex: 0x50C878) : Theme.Colors.textMuted.opacity(0.35))
-                    .frame(width: 11, height: 11)
-                    .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 2))
-                    .scaleEffect(appeared ? 1 : 0.25)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.55), value: member.isActive)
+                    .fill(dotColor)
+                    .frame(width: Self.dotSize, height: Self.dotSize)
+                    .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 2.5))
+                    .scaleEffect(appeared ? 1 : 0.2)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.55), value: dotColor)
             }
             Text(firstName(member.name))
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundColor(Theme.Colors.textSecondary)
                 .lineLimit(1)
-                .frame(width: 46)
         }
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { appeared = true }
@@ -186,7 +196,10 @@ struct CircleCard: View {
     var viewModel: SessionsViewModel
 
     @State private var isRolling: Bool
+    @State private var myUserId: String?
     @State private var showInviteCode = false
+    @State private var showDeleteAlert = false
+    @State private var showStopDisposableAlert = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var showCodeOnAppear: Bool = false
@@ -205,7 +218,6 @@ struct CircleCard: View {
                 .padding(.top, 16)
 
             memberRow
-                .padding(.horizontal, 14)
                 .padding(.top, 14)
 
             Rectangle()
@@ -241,17 +253,73 @@ struct CircleCard: View {
         )
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: isRolling)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: showInviteCode)
-        .onAppear { if showCodeOnAppear { showInviteCode = true } }
+        .onAppear {
+            if showCodeOnAppear { showInviteCode = true }
+            myUserId = viewModel.currentUserId
+        }
+        .alert("Delete circle?", isPresented: $showDeleteAlert) {
+            Button("Delete", role: .destructive) {
+                Task { await viewModel.deleteSession(session) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\"\(session.displayName)\" will be removed for everyone. This can't be undone.")
+        }
+        .alert("Stop and delete circle?", isPresented: $showStopDisposableAlert) {
+            Button("Stop & Delete", role: .destructive) {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = false }
+                Task { await viewModel.leaveSession(session) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Stopping a disposable circle deletes it for everyone.")
+        }
     }
 
     // MARK: Card header
 
+    private var creatorLine: String {
+        if session.creatorId == viewModel.currentUserId {
+            return "You made this circle"
+        }
+        if let creator = session.members.first(where: { $0.id == session.creatorId }) {
+            return "\(creator.name.components(separatedBy: " ").first ?? creator.name) made this circle"
+        }
+        return ""
+    }
+
     private var cardHeader: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text(session.displayName)
-                .font(Theme.Typography.heading)
-                .foregroundColor(Theme.Colors.textPrimary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(session.displayName)
+                    .font(Theme.Typography.heading)
+                    .foregroundColor(Theme.Colors.textPrimary)
+                    .lineLimit(1)
+
+                if !creatorLine.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(creatorLine)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(Theme.Colors.textMuted)
+                }
+
+                if session.kind == .disposable {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("Disposable")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(Color(hex: 0xE07B39))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color(hex: 0xE07B39).opacity(0.12))
+                    .clipShape(Capsule())
+                }
+            }
 
             Spacer()
 
@@ -272,15 +340,36 @@ struct CircleCard: View {
 
     // MARK: Member row
 
+    @ViewBuilder
     private var memberRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(session.members) { member in
-                    MemberAvatarNode(member: member)
+        let members = session.members
+        if members.count <= 4 {
+            // Spread evenly across the full card width
+            HStack(spacing: 0) {
+                ForEach(members) { member in
+                    MemberAvatar(
+                        member: member,
+                        isCurrentUserRolling: isRolling && member.id == myUserId
+                    )
+                    .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal, 2)
-            .padding(.vertical, 4)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+        } else {
+            // Too many to spread — scroll horizontally
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 20) {
+                    ForEach(members) { member in
+                        MemberAvatar(
+                            member: member,
+                            isCurrentUserRolling: isRolling && member.id == myUserId
+                        )
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+            }
         }
     }
 
@@ -322,6 +411,18 @@ struct CircleCard: View {
                 .animation(.easeInOut(duration: 0.15), value: showInviteCode)
             }
             .buttonStyle(SpringTapStyle(scaleAmount: 0.92))
+
+            if session.kind == .lasting {
+                Button { showDeleteAlert = true } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(Theme.Colors.danger)
+                        .frame(width: 46, height: 46)
+                        .background(Theme.Colors.danger.opacity(0.1))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
+            }
         }
     }
 
@@ -329,11 +430,16 @@ struct CircleCard: View {
 
     private func toggleRolling() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) {
-            isRolling.toggle()
-        }
-        if !isRolling {
-            Task { await viewModel.leaveSession(session) }
+        if isRolling {
+            if session.kind == .disposable {
+                showStopDisposableAlert = true
+            } else {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = false }
+                Task { await viewModel.stopRolling(session) }
+            }
+        } else {
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = true }
+            Task { await viewModel.startRolling(session) }
         }
     }
 }

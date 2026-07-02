@@ -246,20 +246,23 @@ struct NearbyAvatarNode: View {
 
 // MARK: - Main screen
 
+enum NearbyMode {
+    case startRoll
+    case addFriend
+}
+
 struct NearbyDiscoveryView: View {
+    var mode: NearbyMode = .startRoll
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var discoveredIds: Set<UUID> = []
-    @State private var selectedId:   UUID?      = nil
+    @State private var selectedIds:  Set<UUID>  = []
     @State private var nearbyCount:  Int         = 0
     @State private var pillScale:    CGFloat     = 1
 
-    private var discovered: [NearbyPerson] { mockNearby.filter { discoveredIds.contains($0.id) } }
-    private var selected:   NearbyPerson?  {
-        guard let id = selectedId else { return nil }
-        return mockNearby.first { $0.id == id }
-    }
+    private var discovered:      [NearbyPerson] { mockNearby.filter { discoveredIds.contains($0.id) } }
+    private var selectedPeople:  [NearbyPerson] { mockNearby.filter { selectedIds.contains($0.id) } }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -270,13 +273,13 @@ struct NearbyDiscoveryView: View {
                 GeometryReader { geo in radarLayer(geo) }
             }
 
-            if let person = selected {
+            if !selectedIds.isEmpty {
                 VStack {
                     Spacer()
-                    startRollBar(person)
+                    startRollBar(selectedPeople)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .animation(.spring(response: 0.38, dampingFraction: 0.78), value: selected?.id)
+                .animation(.spring(response: 0.38, dampingFraction: 0.78), value: selectedIds.isEmpty)
                 .ignoresSafeArea(edges: .bottom)
             }
         }
@@ -383,10 +386,14 @@ struct NearbyDiscoveryView: View {
                 let d   = radar * person.distance
                 NearbyAvatarNode(
                     person: person,
-                    isSelected: selectedId == person.id,
+                    isSelected: selectedIds.contains(person.id),
                     onTap: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) {
-                            selectedId = selectedId == person.id ? nil : person.id
+                            if selectedIds.contains(person.id) {
+                                selectedIds.remove(person.id)
+                            } else {
+                                selectedIds.insert(person.id)
+                            }
                         }
                     }
                 )
@@ -412,19 +419,31 @@ struct NearbyDiscoveryView: View {
 
     // MARK: "Start a roll" action bar
 
-    private func startRollBar(_ person: NearbyPerson) -> some View {
+    private func startRollBar(_ people: [NearbyPerson]) -> some View {
         VStack(spacing: 0) {
             Capsule()
                 .fill(Theme.Colors.border)
                 .frame(width: 36, height: 4)
                 .padding(.top, 10)
 
+            // Selected avatars strip
+            HStack(spacing: -10) {
+                ForEach(people) { person in
+                    AvatarView(name: person.name, size: 36)
+                        .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 2.5))
+                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: people.map(\.id))
+            .padding(.top, 14)
+
             Button { dismiss() } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "film.stack.fill")
+                    Image(systemName: mode == .addFriend ? "person.badge.plus" : "film.stack.fill")
                         .font(.system(size: 15, weight: .semibold))
-                    Text("Start a roll with \(person.name)")
+                    Text(rollLabel(for: people))
                         .font(Theme.Typography.label)
+                        .contentTransition(.interpolate)
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity, minHeight: 52)
@@ -434,7 +453,7 @@ struct NearbyDiscoveryView: View {
             }
             .buttonStyle(SpringTapStyle(scaleAmount: 0.97))
             .padding(.horizontal, 24)
-            .padding(.top, 14)
+            .padding(.top, 12)
             .padding(.bottom, 36)
         }
         .frame(maxWidth: .infinity)
@@ -446,6 +465,25 @@ struct NearbyDiscoveryView: View {
             )
         )
         .shadow(color: .black.opacity(0.08), radius: 18, x: 0, y: -5)
+    }
+
+    private func rollLabel(for people: [NearbyPerson]) -> String {
+        switch mode {
+        case .startRoll:
+            switch people.count {
+            case 0: return ""
+            case 1: return "Start a roll with \(people[0].name)"
+            case 2: return "Start a roll with \(people[0].name) & \(people[1].name)"
+            default: return "Start a roll with \(people.count) people"
+            }
+        case .addFriend:
+            switch people.count {
+            case 0: return ""
+            case 1: return "Add \(people[0].name) to your friends"
+            case 2: return "Add \(people[0].name) & \(people[1].name)"
+            default: return "Add \(people.count) people to your friends"
+            }
+        }
     }
 
     // MARK: Discovery scheduling

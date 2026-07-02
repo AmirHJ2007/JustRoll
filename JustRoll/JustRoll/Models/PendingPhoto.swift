@@ -1,4 +1,5 @@
 import Foundation
+import Photos
 
 struct PendingPhoto: Identifiable {
     let id: String
@@ -6,10 +7,10 @@ struct PendingPhoto: Identifiable {
     let sessionName: String
     let captureDate: Date
     var isSelected: Bool
+    var isVideo: Bool = false
+    var asset: PHAsset? = nil
 
-    // TODO: PhotoKit — add `var asset: PHAsset` here when wiring up real photo collection.
-    // The capture date comes from PHAsset.creationDate (EXIF capture time, not library-added time).
-    // Mock stand-in: a stable color index derived from id for thumbnail placeholder rendering.
+    // Mock fallback: stable color index for placeholder rendering when asset is nil.
     var mockColorSeed: Int {
         id.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
     }

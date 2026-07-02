@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct SessionsView: View {
-    @State private var viewModel = SessionsViewModel()
+    @State private var viewModel: SessionsViewModel
     @State private var listVisible = false
     @State private var joinCode = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(service: any SupabaseServiceProtocol = MockSupabaseService.shared) {
+        self._viewModel = State(initialValue: SessionsViewModel(service: service))
+    }
 
     var body: some View {
         NavigationStack {
@@ -85,7 +89,7 @@ struct SessionsView: View {
 
             Button {
                 let code = joinCode.trimmingCharacters(in: .whitespaces)
-                guard !code.isEmpty else { return }
+                guard code.count >= 5 else { return }
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 Task {
                     do {
@@ -96,16 +100,14 @@ struct SessionsView: View {
                     }
                 }
             } label: {
+                let ready = joinCode.trimmingCharacters(in: .whitespaces).count >= 5
                 Image(systemName: "arrow.right.circle.fill")
                     .font(.system(size: 32))
-                    .foregroundColor(
-                        joinCode.trimmingCharacters(in: .whitespaces).isEmpty
-                            ? Theme.Colors.textMuted : Theme.Colors.accent
-                    )
-                    .animation(.easeInOut(duration: 0.2), value: joinCode.isEmpty)
+                    .foregroundColor(ready ? Theme.Colors.accent : Theme.Colors.textMuted)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: ready)
             }
             .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
-            .disabled(joinCode.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(joinCode.trimmingCharacters(in: .whitespaces).count < 5)
             .padding(.trailing, 8)
         }
         .background(Theme.Colors.background)

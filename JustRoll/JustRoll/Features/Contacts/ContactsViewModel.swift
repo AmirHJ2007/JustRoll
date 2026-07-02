@@ -1,3 +1,6 @@
+// MARK: - Contacts feature disabled (re-enable when adding friend graph in a future version)
+#if false
+
 import Foundation
 import Observation
 
@@ -38,4 +41,23 @@ final class ContactsViewModel {
             errorMessage = error.localizedDescription
         }
     }
+
+    func acceptContact(_ contact: Contact) async {
+        do {
+            try await service.acceptContact(contactId: contact.id)
+            if let idx = contacts.firstIndex(where: { $0.id == contact.id }) {
+                contacts[idx].isConnected = true
+                contacts[idx].isPending   = false
+                contacts[idx].isIncoming  = false
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func rejectContact(_ contact: Contact) async {
+        await removeContact(contact)
+    }
 }
+
+#endif

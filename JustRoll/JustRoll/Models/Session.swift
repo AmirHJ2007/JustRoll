@@ -1,9 +1,14 @@
 import Foundation
 
-enum SessionStatus: Equatable {
+enum SessionStatus: String, Equatable, Codable {
     case pending  // joined, not yet rolling
     case active   // rolling now
     case ended    // session window closed
+}
+
+enum SessionKind: String, Equatable, Codable {
+    case disposable
+    case lasting
 }
 
 struct SessionMember: Identifiable, Equatable {
@@ -11,6 +16,9 @@ struct SessionMember: Identifiable, Equatable {
     let name: String
     let joinedAt: Date
     var leftAt: Date?
+    var isRolling: Bool = false
+    var rollingStartedAt: Date? = nil
+    var rollingStoppedAt: Date? = nil
 
     var isActive: Bool { leftAt == nil }
 }
@@ -22,6 +30,8 @@ struct Session: Identifiable {
     var members: [SessionMember]
     var status: SessionStatus
     let createdAt: Date
+    var kind: SessionKind
+    var creatorId: String = ""
 
     var displayName: String {
         name.isEmpty ? "Roll \(code)" : name

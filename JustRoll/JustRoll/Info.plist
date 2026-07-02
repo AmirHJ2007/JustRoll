@@ -30,6 +30,10 @@
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>JustRoll reads photos you took during a roll to share them with the people who were there.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>JustRoll saves received photos to your camera roll.</string>
 	<key>UISupportedInterfaceOrientations~iphone</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -1,3 +1,6 @@
+// MARK: - Contacts feature disabled (re-enable when adding friend graph in a future version)
+#if false
+
 import SwiftUI
 
 // MARK: - Scroll offset key (pull-to-refresh)
@@ -10,13 +13,17 @@ private struct ScrollOffsetKey: PreferenceKey {
 // MARK: - View
 
 struct ContactsView: View {
-    @State private var viewModel = ContactsViewModel()
+    @State private var viewModel: ContactsViewModel
     @State private var searchText = ""
+
+    init(service: any SupabaseServiceProtocol = MockSupabaseService.shared) {
+        self._viewModel = State(initialValue: ContactsViewModel(service: service))
+    }
     @FocusState private var searchFocused: Bool
     @State private var addUsername = ""
     @State private var isAdding = false
     @State private var addError: String?
-    @State private var isScanning = false
+    @State private var showNearbyFromContacts = false
 
     // Animation
     @State private var listVisible = false
@@ -33,8 +40,9 @@ struct ContactsView: View {
             $0.username.localizedCaseInsensitiveContains(searchText)
         }
     }
-    private var connected: [Contact]    { filtered.filter(\.isConnected) }
-    private var notConnected: [Contact] { filtered.filter { !$0.isConnected } }
+    private var incoming:  [Contact] { filtered.filter { $0.isPending && $0.isIncoming } }
+    private var connected: [Contact] { filtered.filter(\.isConnected) }
+    private var invited:   [Contact] { filtered.filter { $0.isPending && !$0.isIncoming } }
 
     var body: some View {
         NavigationStack {
@@ -52,6 +60,7 @@ struct ContactsView: View {
                     } else {
                         contactList
                     }
+
                 }
 
                 // Film-drop celebration (anchored near add button)
@@ -81,7 +90,7 @@ struct ContactsView: View {
     private var header: some View {
         PageHeader(
             title: "Contacts",
-            subtitle: viewModel.contacts.isEmpty ? nil : "\(connected.count) \(connected.count == 1 ? "friend" : "friends") on JustRoll",
+            subtitle: nil,
             trailing: {
                 Button {
                     withAnimation(.spring(response: 0.2, dampingFraction: 0.5)) { addBtnScale = 0.88 }
@@ -92,50 +101,17 @@ struct ContactsView: View {
                 } label: {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(Theme.Colors.accent)
-                        .frame(width: 40, height: 40)
-                        .background(Theme.Colors.accentTint)
+                        .foregroundColor(.white)
+                        .frame(width: 38, height: 38)
+                        .background(Theme.Colors.accent)
                         .clipShape(Circle())
+                        .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 8, x: 0, y: 3)
                 }
                 .scaleEffect(reduceMotion ? 1 : addBtnScale)
                 .padding(.top, 4)
             },
-            footer: {
-                if !connected.isEmpty && searchText.isEmpty {
-                    crewStrip
-                }
-                searchBar
-            }
+            footer: { searchBar }
         )
-    }
-
-    // MARK: - Crew strip
-
-    private var crewStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 18) {
-                ForEach(Array(connected.enumerated()), id: \.element.id) { idx, contact in
-                    VStack(spacing: 6) {
-                        AvatarView(name: contact.name, size: 46)
-                        Text(contact.name.components(separatedBy: " ").first ?? contact.name)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundColor(Theme.Colors.textSecondary)
-                            .lineLimit(1)
-                    }
-                    .frame(width: 52)
-                    .opacity(listVisible ? 1 : 0)
-                    .offset(x: listVisible ? 0 : 12)
-                    .animation(
-                        reduceMotion ? .none :
-                            .spring(response: 0.45, dampingFraction: 0.8)
-                            .delay(0.05 + Double(idx) * 0.05),
-                        value: listVisible
-                    )
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-        }
     }
 
     // MARK: - Search bar
@@ -201,23 +177,31 @@ struct ContactsView: View {
                     .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isRefreshing)
                 }
 
-                VStack(spacing: 24) {
-                    if !connected.isEmpty {
-                        contactSection(title: "On JustRoll",
-                                       contacts: connected,
-                                       globalOffset: 0,
-                                       muted: false)
-                    }
-                    if !notConnected.isEmpty {
-                        contactSection(title: "Invite them",
-                                       contacts: notConnected,
-                                       globalOffset: connected.count,
-                                       muted: true)
-                    }
+                if !incoming.isEmpty {
+                    incomingSection
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+
+                if !connected.isEmpty {
+                    contactSection(title: nil, contacts: connected)
+                        .padding(.horizontal, 16)
+                        .padding(.top, incoming.isEmpty ? 8 : 20)
+                }
+
+                if !invited.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Invited")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundColor(Theme.Colors.textMuted)
+                            .padding(.horizontal, 16)
+                        contactSection(title: nil, contacts: invited)
+                            .padding(.horizontal, 16)
+                    }
+                    .padding(.top, (incoming.isEmpty && connected.isEmpty) ? 8 : 20)
+                }
+
+                Spacer().frame(height: 40)
             }
         }
         .coordinateSpace(name: "contactsScroll")
@@ -244,52 +228,26 @@ struct ContactsView: View {
         }
     }
 
-    // MARK: - Section builder
+    // MARK: - Incoming requests section
 
-    private func contactSection(
-        title: String,
-        contacts: [Contact],
-        globalOffset: Int,
-        muted: Bool
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var incomingSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(title.uppercased())
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .tracking(0.9)
-                    .foregroundColor(Theme.Colors.textMuted)
-                if muted {
-                    Text("·  not on JustRoll yet")
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundColor(Theme.Colors.textMuted.opacity(0.6))
-                }
+                Circle()
+                    .fill(Theme.Colors.accent)
+                    .frame(width: 7, height: 7)
+                Text("Friend requests")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundColor(Theme.Colors.accent)
             }
-            .padding(.leading, 4)
-
             VStack(spacing: 0) {
-                ForEach(Array(contacts.enumerated()), id: \.element.id) { idx, contact in
-                    let delay = Double(globalOffset + idx) * 0.04
-
-                    ContactRowView(
-                        contact: contact,
-                        animationDelay: delay
-                    ) {
-                        viewModel.showAddSheet = true
-                    } onRemove: {
-                        Task { await viewModel.removeContact(contact) }
+                ForEach(Array(incoming.enumerated()), id: \.element.id) { idx, contact in
+                    IncomingRequestRow(contact: contact) {
+                        Task { await viewModel.acceptContact(contact) }
+                    } onReject: {
+                        Task { await viewModel.rejectContact(contact) }
                     }
-                    .padding(.horizontal, 16)
-                    .background(muted ? Theme.Colors.background.opacity(0.92) : Theme.Colors.background)
-                    // Stagger entrance
-                    .opacity(listVisible ? 1 : 0)
-                    .offset(y: listVisible ? 0 : 18)
-                    .animation(
-                        reduceMotion ? .none :
-                            .spring(response: 0.5, dampingFraction: 0.82).delay(delay),
-                        value: listVisible
-                    )
-
-                    if idx < contacts.count - 1 {
+                    if idx < incoming.count - 1 {
                         Rectangle()
                             .fill(Theme.Colors.border)
                             .frame(height: 0.5)
@@ -297,15 +255,52 @@ struct ContactsView: View {
                     }
                 }
             }
-            .background(muted ? Theme.Colors.surface : Theme.Colors.background)
+            .background(Theme.Colors.background)
             .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: Theme.Colors.accent.opacity(0.10), radius: 10, x: 0, y: 3)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(muted ? Theme.Colors.border : Color.clear, lineWidth: 0.5)
+                    .stroke(Theme.Colors.accent.opacity(0.18), lineWidth: 1)
             )
-            .shadow(color: muted ? .clear : .black.opacity(0.04), radius: 8, x: 0, y: 2)
-            .opacity(muted ? 0.85 : 1)
         }
+    }
+
+    // MARK: - Section builder
+
+    private func contactSection(title: String?, contacts: [Contact]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(contacts.enumerated()), id: \.element.id) { idx, contact in
+                let delay = Double(idx) * 0.04
+
+                ContactRowView(
+                    contact: contact,
+                    animationDelay: delay
+                ) {
+                    viewModel.showAddSheet = true
+                } onRemove: {
+                    Task { await viewModel.removeContact(contact) }
+                }
+                .padding(.horizontal, 16)
+                .background(Theme.Colors.background)
+                .opacity(listVisible ? 1 : 0)
+                .offset(y: listVisible ? 0 : 18)
+                .animation(
+                    reduceMotion ? .none :
+                        .spring(response: 0.5, dampingFraction: 0.82).delay(delay),
+                    value: listVisible
+                )
+
+                if idx < contacts.count - 1 {
+                    Rectangle()
+                        .fill(Theme.Colors.border)
+                        .frame(height: 0.5)
+                        .padding(.leading, 74)
+                }
+            }
+        }
+        .background(Theme.Colors.background)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.04), radius: 8, x: 0, y: 2)
     }
 
     // MARK: - Empty state
@@ -334,9 +329,29 @@ struct ContactsView: View {
     // MARK: - Add friend sheet
 
     private var addFriendSheet: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            // Top bar
+            HStack {
+                Spacer()
+                Button { viewModel.showAddSheet = false } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Theme.Colors.textMuted)
+                        .frame(width: 34, height: 34)
+                        .background(Theme.Colors.surface)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+
             VStack(alignment: .leading, spacing: Theme.Spacing.xl) {
-                Spacer().frame(height: Theme.Spacing.sm)
+                Text("Add a friend")
+                    .font(Theme.Typography.title)
+                    .foregroundColor(Theme.Colors.textPrimary)
+                    .padding(.top, 8)
+
                 VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                     Text("Username")
                         .font(Theme.Typography.caption)
@@ -357,7 +372,7 @@ struct ContactsView: View {
                             try await viewModel.addContact(username: addUsername)
                             viewModel.showAddSheet = false
                             addUsername = ""
-                            showFilmDrop = true          // 🎞 celebrate
+                            showFilmDrop = true
                         } catch {
                             addError = error.localizedDescription
                         }
@@ -369,43 +384,24 @@ struct ContactsView: View {
                     Text("or").font(Theme.Typography.caption).foregroundColor(Theme.Colors.textMuted)
                     Rectangle().fill(Theme.Colors.border).frame(height: 0.5)
                 }
-                Button {
-                    isScanning = true
-                    Task {
-                        try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        isScanning = false
-                    }
-                } label: {
+                Button { showNearbyFromContacts = true } label: {
                     HStack(spacing: Theme.Spacing.sm) {
-                        if isScanning {
-                            ProgressView().tint(Theme.Colors.accent).scaleEffect(0.85)
-                            Text("Looking for people nearby…").font(Theme.Typography.label).foregroundColor(Theme.Colors.accent)
-                        } else {
-                            Image(systemName: "antenna.radiowaves.left.and.right").font(.system(size: 16))
-                                .foregroundColor(Theme.Colors.accent)
-                            Text("They are nearby").font(Theme.Typography.label).foregroundColor(Theme.Colors.accent)
-                        }
+                        Image(systemName: "antenna.radiowaves.left.and.right").font(.system(size: 16))
+                            .foregroundColor(Theme.Colors.accent)
+                        Text("They are nearby").font(Theme.Typography.label).foregroundColor(Theme.Colors.accent)
                     }
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .background(Theme.Colors.accentTint)
                     .clipShape(Capsule())
                     .overlay(Capsule().stroke(Theme.Colors.accent.opacity(0.25), lineWidth: 1))
                 }
-                .disabled(isScanning)
-                .animation(.easeInOut(duration: 0.2), value: isScanning)
                 Spacer()
             }
             .padding(Theme.Spacing.lg)
-            .navigationTitle("Add a friend")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { viewModel.showAddSheet = false }
-                        .foregroundColor(Theme.Colors.textSecondary)
-                }
-            }
-            .background(Theme.Colors.background.ignoresSafeArea())
-            .themedNavBar()
+        }
+        .background(Theme.Colors.background.ignoresSafeArea())
+        .fullScreenCover(isPresented: $showNearbyFromContacts) {
+            NearbyDiscoveryView(mode: .addFriend)
         }
     }
 }
@@ -483,6 +479,67 @@ struct ContactRowView: View {
 
 }
 
+// MARK: - Incoming request row
+
+struct IncomingRequestRow: View {
+    let contact: Contact
+    let onAccept: () -> Void
+    let onReject: () -> Void
+
+    @State private var avatarScale: CGFloat = 0.55
+
+    var body: some View {
+        HStack(spacing: 14) {
+            AvatarView(name: contact.name, size: 46)
+                .scaleEffect(avatarScale)
+                .onAppear {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.05)) {
+                        avatarScale = 1
+                    }
+                }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(contact.name)
+                    .font(Theme.Typography.label)
+                    .foregroundColor(Theme.Colors.textPrimary)
+                Text("@\(contact.username)")
+                    .font(Theme.Typography.caption)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+
+            Spacer()
+
+            // Reject
+            Button(action: onReject) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(Theme.Colors.danger)
+                    .frame(width: 36, height: 36)
+                    .background(Theme.Colors.danger.opacity(0.10))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
+
+            // Accept
+            Button(action: onAccept) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Theme.Colors.accent)
+                    .clipShape(Circle())
+                    .shadow(color: Theme.Colors.accent.opacity(0.35), radius: 6, x: 0, y: 2)
+            }
+            .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+    }
+}
+
 #Preview {
     ContactsView()
 }
+
+#endif

@@ -84,8 +84,13 @@ struct SettingsToggleRow: View {
 // MARK: - Settings view
 
 struct SettingsView: View {
+    var service: any SupabaseServiceProtocol = MockSupabaseService.shared
+    var onSignOut: () -> Void = {}
+
     @State private var nudgesEnabled = true
     @State private var newPhotosEnabled = true
+    @State private var profileName = ""
+    @State private var profileEmail = ""
 
     private let daysLeft = 28
     private let trialTotal = 30
@@ -112,6 +117,20 @@ struct SettingsView: View {
                 }
             }
             .navigationBarHidden(true)
+        }
+        .task { await loadData() }
+        .onChange(of: nudgesEnabled)    { _, v in Task { try? await service.updatePreferences(nudges: v, newPhotos: newPhotosEnabled) } }
+        .onChange(of: newPhotosEnabled) { _, v in Task { try? await service.updatePreferences(nudges: nudgesEnabled, newPhotos: v) } }
+    }
+
+    private func loadData() async {
+        if let user = try? await service.fetchProfile() {
+            profileName  = user.name
+            profileEmail = user.email
+        }
+        if let prefs = try? await service.fetchPreferences() {
+            nudgesEnabled    = prefs.nudges
+            newPhotosEnabled = prefs.newPhotos
         }
     }
 
@@ -145,13 +164,13 @@ struct SettingsView: View {
     private var profileCard: some View {
         card {
             HStack(spacing: 16) {
-                AvatarView(name: "Amir", size: 56)
+                AvatarView(name: profileName.isEmpty ? "?" : profileName, size: 56)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Amir")
+                    Text(profileName.isEmpty ? "—" : profileName)
                         .font(Theme.Typography.heading)
                         .foregroundColor(Theme.Colors.textPrimary)
-                    Text(verbatim: "amir@example.com")
+                    Text(verbatim: profileEmail.isEmpty ? "—" : profileEmail)
                         .font(Theme.Typography.caption)
                         .foregroundStyle(Theme.Colors.textSecondary)
                 }
@@ -260,7 +279,10 @@ struct SettingsView: View {
     private var signOutCard: some View {
         card {
             Button(role: .destructive) {
-                // TODO: service.signOut()
+                Task {
+                    try? await service.signOut()
+                    onSignOut()
+                }
             } label: {
                 HStack(spacing: 14) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
