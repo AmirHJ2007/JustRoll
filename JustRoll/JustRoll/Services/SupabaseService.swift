@@ -9,6 +9,27 @@ private struct ProfileRow: Codable {
     let name: String
     let username: String
     let email: String
+    let avatarId: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, username, email
+        case avatarId = "avatar_id"
+    }
+
+    init(id: UUID, name: String, username: String, email: String, avatarId: Int? = nil) {
+        self.id = id; self.name = name; self.username = username
+        self.email = email; self.avatarId = avatarId
+    }
+
+    // Graceful fallback: avatar_id column may not exist (or be NULL) on older DBs.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id       = try c.decode(UUID.self,   forKey: .id)
+        name     = try c.decode(String.self, forKey: .name)
+        username = try c.decode(String.self, forKey: .username)
+        email    = try c.decode(String.self, forKey: .email)
+        avatarId = (try? c.decodeIfPresent(Int.self, forKey: .avatarId)) ?? nil
+    }
 }
 
 private struct SessionRow: Codable {
@@ -151,6 +172,79 @@ private struct DeliveryInsert: Encodable {
     }
 }
 
+private struct PhotoInsertV2: Encodable {
+    let id: String
+    let sessionId: String
+    let uploaderId: String
+    let storagePath: String
+    let thumbnailPath: String
+    let captureDate: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionId     = "session_id"
+        case uploaderId    = "uploader_id"
+        case storagePath   = "storage_path"
+        case thumbnailPath = "thumbnail_path"
+        case captureDate   = "capture_date"
+    }
+}
+
+private struct DeliveryInsertV2: Encodable {
+    let photoId: String
+    let recipientId: String
+    let senderId: String
+    let sessionId: String
+    let status: String = "pending"
+
+    enum CodingKeys: String, CodingKey {
+        case photoId     = "photo_id"
+        case recipientId = "recipient_id"
+        case senderId    = "sender_id"
+        case sessionId   = "session_id"
+        case status
+    }
+}
+
+private struct DeliveryWithPhotoRow: Decodable {
+    let photoId: UUID
+    let recipientId: UUID
+    let senderId: UUID?
+    let sessionId: UUID?
+    let status: String
+    let photo: PhotoDetailRow
+
+    struct PhotoDetailRow: Decodable {
+        let storagePath: String
+        let thumbnailPath: String?
+        let captureDate: Date
+
+        enum CodingKeys: String, CodingKey {
+            case storagePath   = "storage_path"
+            case thumbnailPath = "thumbnail_path"
+            case captureDate   = "capture_date"
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case photoId     = "photo_id"
+        case recipientId = "recipient_id"
+        case senderId    = "sender_id"
+        case sessionId   = "session_id"
+        case status
+        case photo       = "photos"
+    }
+}
+
+private struct PhotoPathRow: Decodable {
+    let storagePath: String
+    let thumbnailPath: String?
+    enum CodingKeys: String, CodingKey {
+        case storagePath   = "storage_path"
+        case thumbnailPath = "thumbnail_path"
+    }
+}
+
 // MARK: - SupabaseService
 
 final class SupabaseService: SupabaseServiceProtocol {
@@ -171,7 +265,7 @@ final class SupabaseService: SupabaseServiceProtocol {
         let uid = session.user.id.uuidString
         guard let profile = try? await fetchProfileById(uid) else { return nil }
         let user = User(id: uid, email: session.user.email ?? profile.email,
-                        name: profile.name, username: profile.username)
+                        name: profile.name, username: profile.username, avatarId: profile.avatarId)
         currentUser = user
         return user
     }
@@ -192,29 +286,32 @@ final class SupabaseService: SupabaseServiceProtocol {
             profileRow = ProfileRow(id: session.user.id, name: fallback, username: fallback, email: email)
         }
 
-        let user = User(id: uid, email: session.user.email ?? email, name: profileRow.name, username: profileRow.username)
+        let user = User(id: uid, email: session.user.email ?? email, name: profileRow.name, username: profileRow.username, avatarId: profileRow.avatarId)
         currentUser = user
         return user
     }
 
-    func signUp(name: String, username: String, email: String, password: String) async throws -> User {
+    func signUp(name: String, username: String, email: String, password: String, avatarId: Int?) async throws -> User {
+        var metadata: [String: AnyJSON] = ["name": .string(name), "username": .string(username)]
+        if let id = avatarId { metadata["avatar_id"] = .string(String(id)) }
+
         let response = try await client.auth.signUp(
             email: email,
             password: password,
-            data: ["name": .string(name), "username": .string(username)]
+            data: metadata
         )
         let uid = response.user.id.uuidString
         print("[SupabaseService] signUp auth OK — uid: \(uid)")
 
-        await insertProfile(id: uid, name: name, username: username, email: email)
+        await insertProfile(id: uid, name: name, username: username, email: email, avatarId: avatarId)
 
-        let user = User(id: uid, email: email, name: name, username: username)
+        let user = User(id: uid, email: email, name: name, username: username, avatarId: avatarId)
         currentUser = user
         return user
     }
 
     // Tries RPC first (bypasses RLS), falls back to direct insert.
-    private func insertProfile(id: String, name: String, username: String, email: String) async {
+    private func insertProfile(id: String, name: String, username: String, email: String, avatarId: Int? = nil) async {
         struct CreateProfileParams: Encodable {
             let userId: String; let userName: String
             let userUsername: String; let userEmail: String
@@ -225,6 +322,11 @@ final class SupabaseService: SupabaseServiceProtocol {
         }
         struct ProfileInsert: Encodable {
             let id: String; let name: String; let username: String; let email: String
+            let avatarId: Int?
+            enum CodingKeys: String, CodingKey {
+                case id, name, username, email
+                case avatarId = "avatar_id"
+            }
         }
 
         do {
@@ -233,6 +335,18 @@ final class SupabaseService: SupabaseServiceProtocol {
                     userId: id, userName: name, userUsername: username, userEmail: email))
                 .execute()
             print("[SupabaseService] insertProfile via RPC — OK")
+            // The RPC doesn't carry avatar_id — set it separately.
+            if let avatarId {
+                struct AvatarPatch: Encodable {
+                    let avatarId: Int
+                    enum CodingKeys: String, CodingKey { case avatarId = "avatar_id" }
+                }
+                try? await client
+                    .from("profiles")
+                    .update(AvatarPatch(avatarId: avatarId))
+                    .eq("id", value: id)
+                    .execute()
+            }
             return
         } catch {
             print("[SupabaseService] insertProfile RPC failed: \(error)")
@@ -241,7 +355,7 @@ final class SupabaseService: SupabaseServiceProtocol {
         do {
             try await client
                 .from("profiles")
-                .upsert(ProfileInsert(id: id, name: name, username: username, email: email))
+                .upsert(ProfileInsert(id: id, name: name, username: username, email: email, avatarId: avatarId))
                 .execute()
             print("[SupabaseService] insertProfile via direct upsert — OK")
         } catch {
@@ -252,6 +366,34 @@ final class SupabaseService: SupabaseServiceProtocol {
     func signOut() async throws {
         try await client.auth.signOut()
         currentUser = nil
+    }
+
+    func updateAvatar(_ avatarId: Int?) async throws {
+        let uid = try currentUserId()
+        struct AvatarPatch: Encodable {
+            let avatarId: Int?
+            enum CodingKeys: String, CodingKey { case avatarId = "avatar_id" }
+        }
+        try await client
+            .from("profiles")
+            .update(AvatarPatch(avatarId: avatarId))
+            .eq("id", value: uid)
+            .execute()
+        if var user = currentUser {
+            user.avatarId = avatarId
+            currentUser = user
+        }
+    }
+
+    func isUsernameTaken(_ username: String) async throws -> Bool {
+        struct Params: Encodable {
+            let p_username: String
+        }
+        let available: Bool = try await client
+            .rpc("username_available", params: Params(p_username: username))
+            .execute()
+            .value
+        return !available
     }
 
     // MARK: Sessions
@@ -306,6 +448,7 @@ final class SupabaseService: SupabaseServiceProtocol {
                 return SessionMember(
                     id: m.userId.uuidString,
                     name: profile.name,
+                    avatarId: profile.avatarId,
                     joinedAt: m.joinedAt,
                     leftAt: m.leftAt,
                     isRolling: m.isRolling
@@ -355,7 +498,7 @@ final class SupabaseService: SupabaseServiceProtocol {
         }
 
         let profile = try await fetchCurrentProfile()
-        var members = [SessionMember(id: uid, name: profile.name, joinedAt: now)]
+        var members = [SessionMember(id: uid, name: profile.name, avatarId: profile.avatarId, joinedAt: now)]
         members += invitedContacts.map { SessionMember(id: $0.id, name: $0.name, joinedAt: now) }
 
         return Session(
@@ -392,14 +535,31 @@ final class SupabaseService: SupabaseServiceProtocol {
 
     func leaveSession(sessionId: String) async throws {
         let uid = try currentUserId()
-        let now = ISO8601DateFormatter().string(from: Date())
 
         try await client
             .from("session_members")
-            .update(["left_at": now])
+            .delete()
             .eq("session_id", value: sessionId)
             .eq("user_id", value: uid)
             .execute()
+
+        // If no members remain, delete the session itself
+        struct MemberCheck: Decodable { let user_id: String }
+        let remaining: [MemberCheck] = try await client
+            .from("session_members")
+            .select("user_id")
+            .eq("session_id", value: sessionId)
+            .limit(1)
+            .execute()
+            .value
+
+        if remaining.isEmpty {
+            try await client
+                .from("sessions")
+                .delete()
+                .eq("id", value: sessionId)
+                .execute()
+        }
     }
 
     func endSession(sessionId: String) async throws {
@@ -424,6 +584,16 @@ final class SupabaseService: SupabaseServiceProtocol {
             .from("sessions")
             .delete()
             .eq("id", value: sessionId)
+            .execute()
+    }
+
+    func inviteMemberToSession(sessionId: String, username: String) async throws {
+        struct Params: Encodable {
+            let p_session_id: String
+            let p_username: String
+        }
+        try await client
+            .rpc("invite_to_session", params: Params(p_session_id: sessionId, p_username: username))
             .execute()
     }
 
@@ -598,7 +768,7 @@ final class SupabaseService: SupabaseServiceProtocol {
     func fetchProfile() async throws -> User {
         let uid = try currentUserId()
         let profile = try await fetchProfileById(uid)
-        return User(id: uid, email: profile.email, name: profile.name, username: profile.username)
+        return User(id: uid, email: profile.email, name: profile.name, username: profile.username, avatarId: profile.avatarId)
     }
 
     func fetchPreferences() async throws -> (nudges: Bool, newPhotos: Bool) {
@@ -741,6 +911,18 @@ final class SupabaseService: SupabaseServiceProtocol {
             }
             rawAssets.sort { ($0.asset.creationDate ?? start) < ($1.asset.creationDate ?? start) }
 
+            // Empty roll — nothing to review or send. Mark the window as sent so it
+            // never surfaces as a blank card in the Unsent tab (or gets rescanned).
+            if rawAssets.isEmpty {
+                try? await client
+                    .from("session_members")
+                    .update(["batch_sent": true])
+                    .eq("session_id", value: row.sessionId.uuidString)
+                    .eq("user_id", value: uid)
+                    .execute()
+                continue
+            }
+
             let sessionLabel = sessionRow.name.isEmpty ? "Roll \(sessionRow.code)" : sessionRow.name
             var photos: [PendingPhoto] = rawAssets.map { entry in
                 PendingPhoto(
@@ -769,7 +951,76 @@ final class SupabaseService: SupabaseServiceProtocol {
 
     func uploadPhotos(_ photos: [PendingPhoto], sessionId: String) async throws {
         let uid = try currentUserId()
-        // Mark this rolling window as sent so it doesn't reappear
+
+        let isoFmt = ISO8601DateFormatter()
+        isoFmt.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        // Fetch recipient IDs (all members except sender)
+        let allMembers: [SessionMemberRow] = try await client
+            .from("session_members")
+            .select()
+            .eq("session_id", value: sessionId)
+            .execute()
+            .value
+        let recipientIds = allMembers
+            .filter { $0.userId.uuidString != uid }
+            .map { $0.userId.uuidString }
+
+        await MainActor.run { UploadManager.shared.startBatch(id: sessionId, total: photos.count) }
+
+        for (index, photo) in photos.enumerated() {
+            defer {
+                Task { await MainActor.run {
+                    UploadManager.shared.advancePhoto(batchId: sessionId, index: index, total: photos.count)
+                }}
+            }
+
+            guard let asset = photo.asset else { continue }
+
+            let photoId   = UUID().uuidString
+            let fullPath  = "\(sessionId)/\(uid)/\(photoId)_full.jpg"
+            let thumbPath = "\(sessionId)/\(uid)/\(photoId)_thumb.jpg"
+
+            // Export concurrently
+            async let fullData  = PhotoExporter.exportFullRes(asset)
+            async let thumbData = PhotoExporter.exportThumbnail(asset)
+            let (full, thumb)   = await (fullData, thumbData)
+            guard let fullBytes = full else { continue }
+            let thumbBytes = thumb ?? fullBytes
+
+            // Upload both to Supabase Storage
+            try await client.storage.from("photos")
+                .upload(path: fullPath, file: fullBytes,
+                        options: FileOptions(contentType: "image/jpeg", upsert: true))
+            try await client.storage.from("photos")
+                .upload(path: thumbPath, file: thumbBytes,
+                        options: FileOptions(contentType: "image/jpeg", upsert: true))
+
+            // Insert photo row
+            try await client.from("photos")
+                .insert(PhotoInsertV2(
+                    id: photoId,
+                    sessionId: sessionId,
+                    uploaderId: uid,
+                    storagePath: fullPath,
+                    thumbnailPath: thumbPath,
+                    captureDate: isoFmt.string(from: photo.captureDate)
+                ))
+                .execute()
+
+            // Insert delivery row for each recipient
+            if !recipientIds.isEmpty {
+                let deliveries = recipientIds.map { rid in
+                    DeliveryInsertV2(photoId: photoId, recipientId: rid,
+                                     senderId: uid, sessionId: sessionId)
+                }
+                try await client.from("photo_deliveries")
+                    .insert(deliveries)
+                    .execute()
+            }
+        }
+
+        // Mark batch as sent — disappears from Unsent tab
         try await client
             .from("session_members")
             .update(["batch_sent": true])
@@ -777,13 +1028,7 @@ final class SupabaseService: SupabaseServiceProtocol {
             .eq("user_id", value: uid)
             .execute()
 
-        // TODO: Upload photos to Supabase Storage + insert photo_deliveries rows
-        // For each PendingPhoto:
-        //   1. Load UIImage via PHImageManager (photo.asset)
-        //   2. Compress to JPEG
-        //   3. Upload to "photos/{sessionId}/{photoId}.jpg"
-        //   4. INSERT into photos table
-        //   5. INSERT photo_deliveries rows for each recipient
+        await MainActor.run { UploadManager.shared.finishBatch(id: sessionId) }
     }
 
     // MARK: Private helpers
@@ -840,12 +1085,131 @@ final class SupabaseService: SupabaseServiceProtocol {
 
         let members: [SessionMember] = memberRows.compactMap { m in
             guard let profile = profileMap[m.userId.uuidString] else { return nil }
-            return SessionMember(id: m.userId.uuidString, name: profile.name,
+            return SessionMember(id: m.userId.uuidString, name: profile.name, avatarId: profile.avatarId,
                                  joinedAt: m.joinedAt, leftAt: m.leftAt, isRolling: m.isRolling)
         }
 
         return Session(id: row.id.uuidString, code: row.code, name: row.name,
                        members: members, status: status, createdAt: row.createdAt, kind: kind)
+    }
+
+    func fetchReceivedBatches() async throws -> [ReceivedBatch] {
+        let uid = try currentUserId()
+
+        let rows: [DeliveryWithPhotoRow] = try await client
+            .from("photo_deliveries")
+            .select("photo_id, recipient_id, sender_id, session_id, status, photos(storage_path, thumbnail_path, capture_date)")
+            .eq("recipient_id", value: uid)
+            .eq("status", value: "pending")
+            .execute()
+            .value
+
+        guard !rows.isEmpty else { return [] }
+
+        let sessionIds = Array(Set(rows.compactMap { $0.sessionId?.uuidString }))
+        let senderIds  = Array(Set(rows.compactMap { $0.senderId?.uuidString }))
+
+        async let sessionFetch: [SessionRow] = sessionIds.isEmpty ? [] : client
+            .from("sessions").select().in("id", values: sessionIds).execute().value
+        async let senderFetch: [ProfileRow] = senderIds.isEmpty ? [] : client
+            .from("profiles").select().in("id", values: senderIds).execute().value
+
+        let (sessionRows, senderProfiles) = try await (sessionFetch, senderFetch)
+        let sessionMap = Dictionary(uniqueKeysWithValues: sessionRows.map { ($0.id.uuidString, $0) })
+        let senderMap  = Dictionary(uniqueKeysWithValues: senderProfiles.map { ($0.id.uuidString, $0) })
+
+        // Group by (session_id, sender_id)
+        var grouped: [String: [DeliveryWithPhotoRow]] = [:]
+        for row in rows {
+            let sid = row.sessionId?.uuidString ?? "unknown"
+            let snd = row.senderId?.uuidString  ?? "unknown"
+            grouped["\(sid)|\(snd)", default: []].append(row)
+        }
+
+        var batches: [ReceivedBatch] = []
+        for (key, deliveries) in grouped {
+            guard let first = deliveries.first else { continue }
+            let sid = first.sessionId?.uuidString ?? ""
+            let snd = first.senderId?.uuidString  ?? ""
+
+            let sessionName = sessionMap[sid]?.name ?? "Circle"
+            let senderName  = senderMap[snd]?.name.components(separatedBy: " ").first ?? "Someone"
+
+            let sorted = deliveries.sorted { $0.photo.captureDate < $1.photo.captureDate }
+
+            var photos: [ReceivedPhoto] = []
+            for delivery in sorted {
+                let thumbPath = delivery.photo.thumbnailPath ?? delivery.photo.storagePath
+                let fullPath  = delivery.photo.storagePath
+
+                let thumbURL = try? await client.storage.from("photos")
+                    .createSignedURL(path: thumbPath, expiresIn: 604_800)
+                let fullURL  = try? await client.storage.from("photos")
+                    .createSignedURL(path: fullPath,  expiresIn: 604_800)
+
+                photos.append(ReceivedPhoto(
+                    id: delivery.photoId.uuidString,
+                    batchId: key,
+                    url: fullURL?.absoluteString,
+                    captureDate: delivery.photo.captureDate,
+                    isSelected: true,
+                    thumbnailUrl: thumbURL,
+                    fullResUrl: fullURL
+                ))
+            }
+
+            batches.append(ReceivedBatch(
+                id: key,
+                sessionId: sid,
+                sessionName: sessionName,
+                senderName: senderName,
+                senderAvatarId: senderMap[snd]?.avatarId,
+                rollingStartedAt: sorted.first?.photo.captureDate ?? Date(),
+                rollingStoppedAt: sorted.last?.photo.captureDate  ?? Date(),
+                photos: photos,
+                isSaved: false
+            ))
+        }
+
+        return batches.sorted { $0.rollingStoppedAt > $1.rollingStoppedAt }
+    }
+
+    func markBatchSaved(batchId: String, savedPhotoIds: [String], dismissedPhotoIds: [String]) async throws {
+        let uid = try currentUserId()
+        let now = ISO8601DateFormatter().string(from: Date())
+
+        if !savedPhotoIds.isEmpty {
+            try await client.from("photo_deliveries")
+                .update(["status": "saved", "delivered_at": now])
+                .in("photo_id", values: savedPhotoIds)
+                .eq("recipient_id", value: uid)
+                .execute()
+        }
+
+        if !dismissedPhotoIds.isEmpty {
+            try await client.from("photo_deliveries")
+                .update(["status": "dismissed"])
+                .in("photo_id", values: dismissedPhotoIds)
+                .eq("recipient_id", value: uid)
+                .execute()
+        }
+
+        // Best-effort Storage cleanup (pg_cron handles definitive hourly cleanup)
+        let allPhotoIds = savedPhotoIds + dismissedPhotoIds
+        guard !allPhotoIds.isEmpty else { return }
+
+        let photosToClean: [PhotoPathRow] = (try? await client
+            .from("photos")
+            .select("storage_path, thumbnail_path")
+            .in("id", values: allPhotoIds)
+            .execute()
+            .value) ?? []
+
+        for photoRow in photosToClean {
+            var paths = [photoRow.storagePath]
+            if let t = photoRow.thumbnailPath { paths.append(t) }
+            try? await client.storage.from("photos").remove(paths: paths)
+        }
     }
 
     private func randomCode() -> String {

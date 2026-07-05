@@ -14,6 +14,7 @@ enum SessionKind: String, Equatable, Codable {
 struct SessionMember: Identifiable, Equatable {
     let id: String
     let name: String
+    var avatarId: Int? = nil
     let joinedAt: Date
     var leftAt: Date?
     var isRolling: Bool = false

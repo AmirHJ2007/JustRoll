@@ -19,6 +19,7 @@ final class MockSupabaseService: SupabaseServiceProtocol {
     private var pendingPhotos: [PendingPhoto] = MockSupabaseService.seedPendingPhotos()
     private var batches: [PendingBatch] = MockSupabaseService.seedPendingBatches()
     private var dynamicBatches: [PendingBatch] = []  // created when rolling stops
+    private var receivedBatches: [ReceivedBatch] = MockSupabaseService.seedReceivedBatches()
 
     // MARK: Auth
 
@@ -31,15 +32,28 @@ final class MockSupabaseService: SupabaseServiceProtocol {
         return user
     }
 
-    func signUp(name: String, username: String, email: String, password: String) async throws -> User {
+    func signUp(name: String, username: String, email: String, password: String, avatarId: Int?) async throws -> User {
         try await mockDelay(0.8)
-        let user = User(id: UUID().uuidString, email: email, name: name, username: username)
+        let user = User(id: UUID().uuidString, email: email, name: name, username: username, avatarId: avatarId)
         currentUser = user
         return user
     }
 
     func signOut() async throws {
         currentUser = nil
+    }
+
+    func isUsernameTaken(_ username: String) async throws -> Bool {
+        try await mockDelay()
+        return false
+    }
+
+    func updateAvatar(_ avatarId: Int?) async throws {
+        try await mockDelay()
+        if var user = currentUser {
+            user.avatarId = avatarId
+            currentUser = user
+        }
     }
 
     // MARK: Sessions
@@ -100,6 +114,11 @@ final class MockSupabaseService: SupabaseServiceProtocol {
     func deleteSession(sessionId: String) async throws {
         try await mockDelay(0.2)
         sessions.removeAll { $0.id == sessionId }
+    }
+
+    func inviteMemberToSession(sessionId: String, username: String) async throws {
+        try await mockDelay(0.2)
+        // In mock: no-op — member list is managed by the UI layer only
     }
 
     func startRolling(sessionId: String) async throws {
@@ -233,6 +252,18 @@ final class MockSupabaseService: SupabaseServiceProtocol {
         }
     }
 
+    func fetchReceivedBatches() async throws -> [ReceivedBatch] {
+        try await mockDelay()
+        return receivedBatches
+    }
+
+    func markBatchSaved(batchId: String, savedPhotoIds: [String], dismissedPhotoIds: [String]) async throws {
+        try await mockDelay(0.3)
+        if let idx = receivedBatches.firstIndex(where: { $0.id == batchId }) {
+            receivedBatches[idx].isSaved = true
+        }
+    }
+
     // MARK: Seed data
 
     private static func seedSessions() -> [Session] {
@@ -321,6 +352,40 @@ final class MockSupabaseService: SupabaseServiceProtocol {
                 photos: photos2, rollingStartedAt: start2, rollingStoppedAt: end2,
                 recipientNames: ["Sara", "James"]
             ),
+        ]
+    }
+
+    private static func seedReceivedBatches() -> [ReceivedBatch] {
+        let now = Date()
+
+        let batch1Photos = (0..<7).map { i in
+            ReceivedPhoto(id: "recv-b1-\(i)", batchId: "recv-batch-1",
+                          url: nil, captureDate: now.addingTimeInterval(-86400 + Double(i * 120)))
+        }
+        let batch2Photos = (0..<4).map { i in
+            ReceivedPhoto(id: "recv-b2-\(i)", batchId: "recv-batch-2",
+                          url: nil, captureDate: now.addingTimeInterval(-172800 + Double(i * 300)))
+        }
+        let batch3Photos = (0..<12).map { i in
+            ReceivedPhoto(id: "recv-b3-\(i)", batchId: "recv-batch-3",
+                          url: nil, captureDate: now.addingTimeInterval(-259200 + Double(i * 90)))
+        }
+        return [
+            ReceivedBatch(id: "recv-batch-1", sessionId: "session-1", sessionName: "Friday night",
+                          senderName: "Sara",
+                          rollingStartedAt: now.addingTimeInterval(-86400 - 3600),
+                          rollingStoppedAt: now.addingTimeInterval(-86400),
+                          photos: batch1Photos, isSaved: false),
+            ReceivedBatch(id: "recv-batch-2", sessionId: "session-3", sessionName: "Pre-game drinks",
+                          senderName: "Marcus",
+                          rollingStartedAt: now.addingTimeInterval(-172800 - 2700),
+                          rollingStoppedAt: now.addingTimeInterval(-172800),
+                          photos: batch2Photos, isSaved: true),
+            ReceivedBatch(id: "recv-batch-3", sessionId: "session-4", sessionName: "Rooftop",
+                          senderName: "Lena",
+                          rollingStartedAt: now.addingTimeInterval(-259200 - 5400),
+                          rollingStoppedAt: now.addingTimeInterval(-259200),
+                          photos: batch3Photos, isSaved: false),
         ]
     }
 

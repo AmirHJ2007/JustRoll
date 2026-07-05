@@ -1,3 +1,4 @@
+import MultipeerConnectivity
 import SwiftUI
 
 // MARK: - Model
@@ -5,28 +6,27 @@ import SwiftUI
 struct NearbyPerson: Identifiable {
     let id: UUID
     let name: String
+    /// Supabase username — used to add the person to a session via the backend.
+    let username: String
+    /// Picked preset avatar (1–12) — travels in MPC discovery info.
+    let avatarId: Int?
     /// 0.25–0.82 fraction of radar radius (closer = inner ring)
     let distance: CGFloat
     /// Degrees, 0 = right, clockwise
     let angle: Double
-    /// Seconds after radar starts before this person appears
+    /// Seconds after radar starts before this person appears (kept for API compat)
     let discoveryDelay: Double
+    /// The underlying MPC peer — needed to send a notification invite.
+    let peerId: MCPeerID
 
-    init(name: String, distance: CGFloat, angle: Double, discoveryDelay: Double) {
+    init(name: String, username: String, avatarId: Int? = nil, distance: CGFloat, angle: Double, discoveryDelay: Double, peerId: MCPeerID) {
         self.id = UUID()
-        self.name = name; self.distance = distance
+        self.name = name; self.username = username; self.avatarId = avatarId
+        self.distance = distance
         self.angle = angle; self.discoveryDelay = discoveryDelay
+        self.peerId = peerId
     }
 }
-
-// Delays are aligned so the sweep arc is near each avatar when they appear.
-// Sweep period = 4 s. delay ≈ (angle/360)*4 + n*4  where n = which sweep pass.
-private let mockNearby: [NearbyPerson] = [
-    NearbyPerson(name: "Sara",   distance: 0.38, angle: 48,  discoveryDelay: 4.5),   // 2nd sweep pass
-    NearbyPerson(name: "James",  distance: 0.64, angle: 135, discoveryDelay: 5.5),
-    NearbyPerson(name: "Lena",   distance: 0.30, angle: 222, discoveryDelay: 10.5),  // 3rd sweep pass
-    NearbyPerson(name: "Tom",    distance: 0.76, angle: 308, discoveryDelay: 11.4),
-]
 
 // MARK: - Radar Canvas
 
@@ -57,7 +57,6 @@ struct SonarPulseView: View {
                 }
             }
         }
-        // No explicit frame — fills the full ZStack / GeometryReader area naturally
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -143,6 +142,8 @@ struct RadarCanvasView: View {
 // MARK: - Center Avatar (my own, with pulsing ring)
 
 private struct CenterAvatarView: View {
+    let name: String
+    var avatarId: Int? = nil
     @State private var pulsing = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -171,7 +172,7 @@ private struct CenterAvatarView: View {
                 .fill(Theme.Colors.accentTint)
                 .frame(width: 56, height: 56)
 
-            AvatarView(name: "Amir", size: 48)
+            AvatarView(name: name, size: 48, avatarId: avatarId)
                 .overlay(Circle().stroke(Color.white, lineWidth: 2.5))
         }
         .shadow(color: Theme.Colors.accent.opacity(0.22), radius: 14, x: 0, y: 5)
@@ -206,7 +207,7 @@ struct NearbyAvatarNode: View {
                         .opacity(isSelected ? 1 : 0)
                         .animation(.spring(response: 0.28, dampingFraction: 0.6), value: isSelected)
 
-                    AvatarView(name: person.name, size: 44)
+                    AvatarView(name: person.name, size: 44, avatarId: person.avatarId)
                         .overlay(Circle().stroke(Color.white, lineWidth: 2.5))
                         .shadow(color: .black.opacity(0.14), radius: 8, x: 0, y: 4)
                         .scaleEffect(isSelected ? 1.08 : 1)
@@ -253,16 +254,24 @@ enum NearbyMode {
 
 struct NearbyDiscoveryView: View {
     var mode: NearbyMode = .startRoll
+    var currentUserName: String = "Me"
+    var currentUserUsername: String = ""
+    var currentUserAvatarId: Int? = nil
+    /// When set, tapping "Start a roll" sends this code to selected peers via MPC.
+    var sessionCode: String? = nil
+    var sessionDisplayName: String? = nil
+    /// Called with the confirmed selection just before the view dismisses.
+    var onConfirm: (([NearbyPerson]) -> Void)? = nil
+
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var discoveredIds: Set<UUID> = []
-    @State private var selectedIds:  Set<UUID>  = []
-    @State private var nearbyCount:  Int         = 0
-    @State private var pillScale:    CGFloat     = 1
+    /// Names of tapped peers (stable key even if UUID changes on re-discovery)
+    @State private var selectedNames: Set<String> = []
+    @State private var pillScale: CGFloat = 1
 
-    private var discovered:      [NearbyPerson] { mockNearby.filter { discoveredIds.contains($0.id) } }
-    private var selectedPeople:  [NearbyPerson] { mockNearby.filter { selectedIds.contains($0.id) } }
+    private var discovered: [NearbyPerson] { NearbySessionManager.shared.discoveredPeople }
+    private var selectedPeople: [NearbyPerson] { discovered.filter { selectedNames.contains($0.name) } }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -273,17 +282,37 @@ struct NearbyDiscoveryView: View {
                 GeometryReader { geo in radarLayer(geo) }
             }
 
-            if !selectedIds.isEmpty {
+            if !selectedNames.isEmpty {
                 VStack {
                     Spacer()
                     startRollBar(selectedPeople)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-                .animation(.spring(response: 0.38, dampingFraction: 0.78), value: selectedIds.isEmpty)
+                .animation(.spring(response: 0.38, dampingFraction: 0.78), value: selectedNames.isEmpty)
                 .ignoresSafeArea(edges: .bottom)
             }
         }
-        .task { await runDiscoverySequence() }
+        .onAppear {
+            NearbySessionManager.shared.start(
+                displayName: currentUserName,
+                username: currentUserUsername,
+                avatarId: currentUserAvatarId
+            )
+        }
+        .onDisappear {
+            // Keep advertising so others can still discover this device; only stop browsing.
+            NearbySessionManager.shared.stopBrowsing()
+        }
+        .onChange(of: discovered.count) { _, newCount in
+            // Bounce the counter pill when someone new appears
+            withAnimation(.spring(response: 0.20, dampingFraction: 0.35)) { pillScale = 1.25 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.65)) { pillScale = 1.0 }
+            }
+            // Remove selected names that are no longer present
+            let currentNames = Set(discovered.map(\.name))
+            selectedNames = selectedNames.intersection(currentNames)
+        }
     }
 
     // MARK: Header panel
@@ -304,16 +333,16 @@ struct NearbyDiscoveryView: View {
                         Circle().fill(Theme.Colors.accent.opacity(0.6)).frame(width: 4, height: 4)
                     }
                     Group {
-                        if nearbyCount == 0 {
+                        if discovered.count == 0 {
                             Text("Looking for friends nearby…")
                         } else {
-                            Text("\(nearbyCount) \(nearbyCount == 1 ? "friend" : "friends") nearby")
+                            Text("\(discovered.count) \(discovered.count == 1 ? "friend" : "friends") nearby")
                         }
                     }
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(Theme.Colors.accent)
                     .contentTransition(.numericText())
-                    .animation(.spring(response: 0.3), value: nearbyCount)
+                    .animation(.spring(response: 0.3), value: discovered.count)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -377,7 +406,7 @@ struct NearbyDiscoveryView: View {
                 .position(x: cx, y: cy)
 
             // My avatar dead-center
-            CenterAvatarView()
+            CenterAvatarView(name: currentUserName, avatarId: currentUserAvatarId)
                 .position(x: cx, y: cy)
 
             // Discovered friends at their angular positions
@@ -386,13 +415,13 @@ struct NearbyDiscoveryView: View {
                 let d   = radar * person.distance
                 NearbyAvatarNode(
                     person: person,
-                    isSelected: selectedIds.contains(person.id),
+                    isSelected: selectedNames.contains(person.name),
                     onTap: {
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.65)) {
-                            if selectedIds.contains(person.id) {
-                                selectedIds.remove(person.id)
+                            if selectedNames.contains(person.name) {
+                                selectedNames.remove(person.name)
                             } else {
-                                selectedIds.insert(person.id)
+                                selectedNames.insert(person.name)
                             }
                         }
                     }
@@ -429,7 +458,7 @@ struct NearbyDiscoveryView: View {
             // Selected avatars strip
             HStack(spacing: -10) {
                 ForEach(people) { person in
-                    AvatarView(name: person.name, size: 36)
+                    AvatarView(name: person.name, size: 36, avatarId: person.avatarId)
                         .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 2.5))
                         .transition(.scale(scale: 0.5).combined(with: .opacity))
                 }
@@ -437,7 +466,17 @@ struct NearbyDiscoveryView: View {
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: people.map(\.id))
             .padding(.top, 14)
 
-            Button { dismiss() } label: {
+            Button {
+                if let code = sessionCode, let name = sessionDisplayName {
+                    NearbySessionManager.shared.sendJoinInvite(
+                        sessionCode: code,
+                        sessionName: name,
+                        to: people
+                    )
+                }
+                onConfirm?(people)
+                dismiss()
+            } label: {
                 HStack(spacing: 10) {
                     Image(systemName: mode == .addFriend ? "person.badge.plus" : "film.stack.fill")
                         .font(.system(size: 15, weight: .semibold))
@@ -485,38 +524,8 @@ struct NearbyDiscoveryView: View {
             }
         }
     }
-
-    // MARK: Discovery scheduling
-
-    private func runDiscoverySequence() async {
-        let start  = Date()
-        let sorted = mockNearby.sorted { $0.discoveryDelay < $1.discoveryDelay }
-
-        for person in sorted {
-            let elapsed   = Date().timeIntervalSince(start)
-            let remaining = person.discoveryDelay - elapsed
-            if remaining > 0 {
-                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
-            }
-
-            withAnimation(.easeIn(duration: 0.15)) {
-                discoveredIds.insert(person.id)
-                nearbyCount = discoveredIds.count
-            }
-
-            // Counter-pill bounce
-            withAnimation(.spring(response: 0.20, dampingFraction: 0.35)) { pillScale = 1.25 }
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.65)) { pillScale = 1.0 }
-
-            // Haptic
-            await MainActor.run {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            }
-        }
-    }
 }
 
 #Preview {
-    NearbyDiscoveryView()
+    NearbyDiscoveryView(currentUserName: "Amir", currentUserUsername: "amir")
 }

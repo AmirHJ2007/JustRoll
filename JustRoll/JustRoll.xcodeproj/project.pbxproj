@@ -17,10 +17,14 @@
 		AD000032 /* Contact.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000032 /* Contact.swift */; };
 		AD000033 /* PendingPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000033 /* PendingPhoto.swift */; };
 		AD000034 /* PendingBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000034 /* PendingBatch.swift */; };
+		AD000035 /* ReceivedBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000035 /* ReceivedBatch.swift */; };
 		AD000040 /* SupabaseServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000040 /* SupabaseServiceProtocol.swift */; };
 		AD000041 /* MockSupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000041 /* MockSupabaseService.swift */; };
 		AD000042 /* SupabaseConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000042 /* SupabaseConfig.swift */; };
 		AD000043 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000043 /* SupabaseService.swift */; };
+		AD000044 /* PhotoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000044 /* PhotoExporter.swift */; };
+		AD000045 /* UploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000045 /* UploadManager.swift */; };
+		AD000046 /* NearbySessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000046 /* NearbySessionManager.swift */; };
 		AD000050 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000050 /* SessionsView.swift */; };
 		AD000051 /* SessionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000051 /* SessionsViewModel.swift */; };
 		AD000052 /* SessionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000052 /* SessionRowView.swift */; };
@@ -32,10 +36,12 @@
 		AD000072 /* ReviewPhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000072 /* ReviewPhotoGridView.swift */; };
 		AD000080 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000080 /* SettingsView.swift */; };
 		AD000085 /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000085 /* MemoryView.swift */; };
+		AD000086 /* ReceivedReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000086 /* ReceivedReviewView.swift */; };
 		AD000090 /* Caveat-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AC000090 /* Caveat-Medium.ttf */; };
 		AD000092 /* ShantellSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AC000092 /* ShantellSans-Medium.ttf */; };
 		AD000093 /* NearbyDiscoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000093 /* NearbyDiscoveryView.swift */; };
 		AD000095 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000095 /* AuthView.swift */; };
+		AD000096 /* OnboardingFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000096 /* OnboardingFlowView.swift */; };
 		BD0180C52FF5A52D007C3292 /* Auth in Frameworks */ = {isa = PBXBuildFile; productRef = BD0180C42FF5A52D007C3292 /* Auth */; };
 		BD0180C72FF5A52D007C3292 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = BD0180C62FF5A52D007C3292 /* Realtime */; };
 		BD0180C92FF5A52D007C3292 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = BD0180C82FF5A52D007C3292 /* Storage */; };
@@ -54,10 +60,14 @@
 		AC000032 /* Contact.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Contact.swift; sourceTree = "<group>"; };
 		AC000033 /* PendingPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingPhoto.swift; sourceTree = "<group>"; };
 		AC000034 /* PendingBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingBatch.swift; sourceTree = "<group>"; };
+		AC000035 /* ReceivedBatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceivedBatch.swift; sourceTree = "<group>"; };
 		AC000040 /* SupabaseServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseServiceProtocol.swift; sourceTree = "<group>"; };
 		AC000041 /* MockSupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockSupabaseService.swift; sourceTree = "<group>"; };
 		AC000042 /* SupabaseConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseConfig.swift; sourceTree = "<group>"; };
 		AC000043 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		AC000044 /* PhotoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoExporter.swift; sourceTree = "<group>"; };
+		AC000045 /* UploadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadManager.swift; sourceTree = "<group>"; };
+		AC000046 /* NearbySessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbySessionManager.swift; sourceTree = "<group>"; };
 		AC000050 /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
 		AC000051 /* SessionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsViewModel.swift; sourceTree = "<group>"; };
 		AC000052 /* SessionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
@@ -69,11 +79,13 @@
 		AC000072 /* ReviewPhotoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPhotoGridView.swift; sourceTree = "<group>"; };
 		AC000080 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AC000085 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
+		AC000086 /* ReceivedReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceivedReviewView.swift; sourceTree = "<group>"; };
 		AC000090 /* Caveat-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Caveat-Medium.ttf"; sourceTree = "<group>"; };
 		AC000091 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AC000092 /* ShantellSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ShantellSans-Medium.ttf"; sourceTree = "<group>"; };
 		AC000093 /* NearbyDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyDiscoveryView.swift; sourceTree = "<group>"; };
 		AC000095 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		AC000096 /* OnboardingFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +160,7 @@
 				AC000032 /* Contact.swift */,
 				AC000033 /* PendingPhoto.swift */,
 				AC000034 /* PendingBatch.swift */,
+				AC000035 /* ReceivedBatch.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -159,6 +172,9 @@
 				AC000041 /* MockSupabaseService.swift */,
 				AC000042 /* SupabaseConfig.swift */,
 				AC000043 /* SupabaseService.swift */,
+				AC000044 /* PhotoExporter.swift */,
+				AC000045 /* UploadManager.swift */,
+				AC000046 /* NearbySessionManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -236,6 +252,7 @@
 			isa = PBXGroup;
 			children = (
 				AC000095 /* AuthView.swift */,
+				AC000096 /* OnboardingFlowView.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -244,6 +261,7 @@
 			isa = PBXGroup;
 			children = (
 				AC000085 /* MemoryView.swift */,
+				AC000086 /* ReceivedReviewView.swift */,
 			);
 			path = Memory;
 			sourceTree = "<group>";
@@ -331,10 +349,14 @@
 				AD000032 /* Contact.swift in Sources */,
 				AD000033 /* PendingPhoto.swift in Sources */,
 				AD000034 /* PendingBatch.swift in Sources */,
+				AD000035 /* ReceivedBatch.swift in Sources */,
 				AD000040 /* SupabaseServiceProtocol.swift in Sources */,
 				AD000041 /* MockSupabaseService.swift in Sources */,
 				AD000042 /* SupabaseConfig.swift in Sources */,
 				AD000043 /* SupabaseService.swift in Sources */,
+				AD000044 /* PhotoExporter.swift in Sources */,
+				AD000045 /* UploadManager.swift in Sources */,
+				AD000046 /* NearbySessionManager.swift in Sources */,
 				AD000050 /* SessionsView.swift in Sources */,
 				AD000051 /* SessionsViewModel.swift in Sources */,
 				AD000052 /* SessionRowView.swift in Sources */,
@@ -347,7 +369,9 @@
 				AD000080 /* SettingsView.swift in Sources */,
 				AD000093 /* NearbyDiscoveryView.swift in Sources */,
 				AD000095 /* AuthView.swift in Sources */,
+				AD000096 /* OnboardingFlowView.swift in Sources */,
 				AD000085 /* MemoryView.swift in Sources */,
+				AD000086 /* ReceivedReviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -492,7 +516,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
 		};
@@ -521,7 +545,7 @@
 				SUPPORTS_MACCATALYST = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};

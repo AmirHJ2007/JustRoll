@@ -288,3 +288,123 @@ CREATE POLICY "users own their preferences"
 --   bucket_id = 'photos' AND auth.uid() IS NOT NULL  → INSERT
 -- Allow member download:
 --   bucket_id = 'photos' AND auth.uid() IS NOT NULL  → SELECT
+
+-- =============================================================
+-- Migration: nearby invite (run in Supabase SQL editor)
+-- Allows the session creator to add a nearby user by username,
+-- bypassing the RLS policy that only lets users add themselves.
+-- =============================================================
+
+CREATE OR REPLACE FUNCTION invite_to_session(p_session_id UUID, p_username TEXT)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  -- Only the session creator can invite
+  IF NOT EXISTS (
+    SELECT 1 FROM public.sessions
+    WHERE id = p_session_id AND creator_id = auth.uid()
+  ) THEN
+    RAISE EXCEPTION 'Only the session creator can invite members';
+  END IF;
+
+  SELECT id INTO v_user_id FROM public.profiles WHERE username = p_username;
+  IF v_user_id IS NULL THEN RETURN; END IF;  -- silently skip unknown usernames
+
+  INSERT INTO public.session_members (session_id, user_id)
+  VALUES (p_session_id, v_user_id)
+  ON CONFLICT DO NOTHING;
+END;
+$$;
+
+-- =============================================================
+-- Migration: photo delivery pipeline (run AFTER initial schema)
+-- =============================================================
+
+-- Add thumbnail path to photos table
+ALTER TABLE public.photos
+  ADD COLUMN IF NOT EXISTS thumbnail_path TEXT;
+
+-- Add status + sender + session tracking to photo_deliveries
+ALTER TABLE public.photo_deliveries
+  ADD COLUMN IF NOT EXISTS status     TEXT NOT NULL DEFAULT 'pending',
+  ADD COLUMN IF NOT EXISTS sender_id  UUID REFERENCES public.profiles(id),
+  ADD COLUMN IF NOT EXISTS session_id UUID REFERENCES public.sessions(id);
+
+-- Backfill: existing delivered rows → saved
+UPDATE public.photo_deliveries SET status = 'saved' WHERE delivered_at IS NOT NULL;
+
+-- RLS: recipients can update their own delivery status
+DROP POLICY IF EXISTS "recipient can update delivery status" ON public.photo_deliveries;
+CREATE POLICY "recipient can update delivery status"
+  ON public.photo_deliveries FOR UPDATE
+  USING (recipient_id = auth.uid());
+
+-- Auto-cleanup: delete photos where all deliveries are resolved (runs hourly)
+SELECT cron.schedule(
+  'cleanup-resolved-photos',
+  '0 * * * *',
+  $$
+    DELETE FROM public.photos
+    WHERE id IN (
+      SELECT p.id FROM public.photos p
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.photo_deliveries d
+        WHERE d.photo_id = p.id AND d.status = 'pending'
+      )
+    );
+  $$
+);
+
+-- RPC: return storage paths for fully-resolved photos in a session (used for client-side cleanup)
+CREATE OR REPLACE FUNCTION get_fully_resolved_photos(p_session_id UUID)
+RETURNS TABLE(storage_path TEXT, thumbnail_path TEXT) AS $$
+  SELECT p.storage_path, p.thumbnail_path
+  FROM public.photos p
+  WHERE p.session_id = p_session_id
+    AND NOT EXISTS (
+      SELECT 1 FROM public.photo_deliveries d
+      WHERE d.photo_id = p.id AND d.status = 'pending'
+    );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- =============================================================
+-- Migration: preset avatars (run in Supabase SQL editor)
+-- Adds a nullable avatar_id (1-12, references bundled preset
+-- images in the app). NULL = initials fallback.
+-- =============================================================
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_id INT;
+
+-- Recreate the sign-up trigger function so new users get their
+-- chosen avatar from auth metadata (nullable-safe cast to INT).
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, name, username, avatar_id)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    NEW.raw_user_meta_data->>'name',
+    NEW.raw_user_meta_data->>'username',
+    NULLIF(NEW.raw_user_meta_data->>'avatar_id', '')::INT
+  );
+  RETURN NEW;
+END;
+$$;
+
+-- =============================================================
+-- Migration: username availability check (run in SQL editor)
+-- Lets the onboarding flow verify a handle is free BEFORE the
+-- account exists. SECURITY DEFINER because anon users cannot
+-- read profiles under RLS.
+-- =============================================================
+
+CREATE OR REPLACE FUNCTION username_available(p_username TEXT)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT NOT EXISTS (
+    SELECT 1 FROM public.profiles WHERE lower(username) = lower(p_username)
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION username_available(TEXT) TO anon, authenticated;

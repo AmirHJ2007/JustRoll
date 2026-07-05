@@ -8,6 +8,8 @@ final class UnsentViewModel {
     var isLoading = false
     var isSending = false
     var errorMessage: String?
+    /// True while the review grid is open — RootTabView hides the tab bar so the send bar owns the bottom edge.
+    var isReviewing = false
 
     private let service: any SupabaseServiceProtocol
 

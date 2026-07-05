@@ -1,7 +1,21 @@
 import SwiftUI
+import AVFoundation
+import UIKit
+
+// MARK: - AppDelegate (background URL session support)
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        completionHandler()
+    }
+}
 
 @main
 struct JustRollApp: App {
+
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     init() {
         configureAppearance()
@@ -9,14 +23,15 @@ struct JustRollApp: App {
 
     @State private var currentUser: User?
     @State private var sessionRestored = false
+    @State private var videoPlayedOnce = false
 
     private let service: any SupabaseServiceProtocol = SupabaseService.shared
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if !sessionRestored {
-                    Color(Theme.Colors.background).ignoresSafeArea()
+                if !sessionRestored || !videoPlayedOnce {
+                    SplashView(onVideoPlayedOnce: { videoPlayedOnce = true })
                 } else if currentUser != nil {
                     RootTabView(
                         onSignOut: {
@@ -32,7 +47,8 @@ struct JustRollApp: App {
                     .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.35), value: sessionRestored)
+            .preferredColorScheme(.light)   // light-only design — dark mode flips dynamic text to white on light backgrounds
+            .animation(.easeInOut(duration: 0.35), value: sessionRestored && videoPlayedOnce)
             .animation(.easeInOut(duration: 0.35), value: currentUser != nil)
             .task {
                 let user = await service.restoreSession()
@@ -64,4 +80,77 @@ struct JustRollApp: App {
         UITableView.appearance().backgroundColor     = .clear
         UITableViewCell.appearance().backgroundColor = .clear
     }
+}
+
+// MARK: - Splash screen
+
+private struct SplashView: View {
+    var onVideoPlayedOnce: () -> Void = {}
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        ZStack {
+            // Matched to the video's background color (#567543, sampled from first frame)
+            Color(hex: 0x567543).ignoresSafeArea()
+
+            if let player {
+                SplashVideoPlayer(player: player)
+                    .frame(width: 280, height: 280)
+            }
+        }
+        .onAppear { setupPlayer() }
+        .onDisappear { player?.pause() }
+    }
+
+    private func setupPlayer() {
+        guard let asset = NSDataAsset(name: "loading_page") else { return }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("justroll_splash.mp4")
+        try? asset.data.write(to: url, options: .atomic)
+        let item = AVPlayerItem(url: url)
+        let p = AVPlayer(playerItem: item)
+        p.isMuted = true
+        var playedOnce = false
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { _ in
+            if !playedOnce {
+                playedOnce = true
+                onVideoPlayedOnce()  // signal: at least one full play done
+            }
+            p.seek(to: .zero)
+            p.play()  // keep looping until parent dismisses
+        }
+        player = p
+        p.play()
+    }
+}
+
+// UIView subclass whose layer IS an AVPlayerLayer — resizes automatically.
+private final class SplashPlayerUIView: UIView {
+    override class var layerClass: AnyClass { AVPlayerLayer.self }
+    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
+
+    var player: AVPlayer? {
+        get { playerLayer.player }
+        set {
+            playerLayer.player = newValue
+            playerLayer.videoGravity = .resizeAspect
+        }
+    }
+}
+
+private struct SplashVideoPlayer: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> SplashPlayerUIView {
+        let view = SplashPlayerUIView()
+        view.player = player
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ uiView: SplashPlayerUIView, context: Context) {}
 }

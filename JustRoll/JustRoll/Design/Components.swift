@@ -84,17 +84,26 @@ func avatarColors(for name: String) -> (bg: Color, fg: Color) {
 struct AvatarView: View {
     let name: String
     var size: CGFloat = 40
+    var avatarId: Int? = nil
 
     var body: some View {
-        let c = avatarColors(for: name)
-        Circle()
-            .fill(c.bg)
-            .frame(width: size, height: size)
-            .overlay(
-                Text(String(name.prefix(1)).uppercased())
-                    .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
-                    .foregroundColor(c.fg)
-            )
+        if let id = avatarId, (1...12).contains(id) {
+            Image("\(id)")
+                .resizable()
+                .scaledToFill()
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        } else {
+            let c = avatarColors(for: name)
+            Circle()
+                .fill(c.bg)
+                .frame(width: size, height: size)
+                .overlay(
+                    Text(String(name.prefix(1)).uppercased())
+                        .font(.system(size: size * 0.38, weight: .semibold, design: .rounded))
+                        .foregroundColor(c.fg)
+                )
+        }
     }
 }
 
@@ -104,15 +113,20 @@ struct AvatarCluster: View {
     let names: [String]
     var size: CGFloat = 28
     var maxVisible: Int = 4
+    /// Optional picked-avatar ids, index-aligned with `names`.
+    var avatarIds: [Int?] = []
 
     private var visible: [String] { Array(names.prefix(maxVisible)) }
     private var overflow: Int    { max(0, names.count - maxVisible) }
 
     var body: some View {
         HStack(spacing: -(size * 0.28)) {
-            ForEach(Array(visible.enumerated()), id: \.offset) { _, name in
-                AvatarView(name: name, size: size)
-                    .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 1.5))
+            ForEach(Array(visible.enumerated()), id: \.offset) { index, name in
+                AvatarView(
+                    name: name, size: size,
+                    avatarId: index < avatarIds.count ? avatarIds[index] : nil
+                )
+                .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 1.5))
             }
             if overflow > 0 {
                 Circle()

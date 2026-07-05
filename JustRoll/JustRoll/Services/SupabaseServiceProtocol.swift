@@ -6,8 +6,12 @@ protocol SupabaseServiceProtocol: AnyObject {
     // MARK: Auth
     func restoreSession() async -> User?
     func signIn(email: String, password: String) async throws -> User
-    func signUp(name: String, username: String, email: String, password: String) async throws -> User
+    func signUp(name: String, username: String, email: String, password: String, avatarId: Int?) async throws -> User
     func signOut() async throws
+    /// True if another profile already claimed this username. Callable before auth.
+    func isUsernameTaken(_ username: String) async throws -> Bool
+    /// Change the signed-in user's preset avatar (1–12), or nil to clear it.
+    func updateAvatar(_ avatarId: Int?) async throws
 
     // MARK: Sessions
     func fetchSessions() async throws -> [Session]
@@ -18,6 +22,8 @@ protocol SupabaseServiceProtocol: AnyObject {
     func deleteSession(sessionId: String) async throws
     func startRolling(sessionId: String) async throws
     func stopRolling(sessionId: String) async throws
+    /// Add a user to an existing session by their username (creator only).
+    func inviteMemberToSession(sessionId: String, username: String) async throws
 
     // MARK: Contacts (disabled — re-enable with friend graph feature)
     // func fetchContacts() async throws -> [Contact]
@@ -34,6 +40,8 @@ protocol SupabaseServiceProtocol: AnyObject {
     func fetchPendingPhotos() async throws -> [PendingPhoto]
     func fetchPendingBatches() async throws -> [PendingBatch]
     func uploadPhotos(_ photos: [PendingPhoto], sessionId: String) async throws
+    func fetchReceivedBatches() async throws -> [ReceivedBatch]
+    func markBatchSaved(batchId: String, savedPhotoIds: [String], dismissedPhotoIds: [String]) async throws
 }
 
 enum ServiceError: LocalizedError {

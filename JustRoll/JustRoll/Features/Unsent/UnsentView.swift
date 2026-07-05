@@ -1,4 +1,5 @@
 import SwiftUI
+import Photos
 
 // MARK: - CountdownChip
 
@@ -53,86 +54,134 @@ struct CountdownChip: View {
     }
 }
 
-// MARK: - ThumbnailPreviewStrip
+// MARK: - FannedPhotoStack
+// Shows up to 3 "photo prints" fanned like a pile, most recent on top.
 
-struct ThumbnailPreviewStrip: View {
+struct FannedPhotoStack: View {
     let photos: [PendingPhoto]
+    var frameSize: CGFloat = 76
 
     private let palette: [Color] = [
         Color(hex: 0x8EC5A2), Color(hex: 0xF4A261), Color(hex: 0xA8DADC),
         Color(hex: 0xC8A2C8), Color(hex: 0xF7D59C), Color(hex: 0xE8A598),
         Color(hex: 0x7EC8E3), Color(hex: 0xB7C9A8),
     ]
-    private let maxVisible = 4
-    private let thumbSize: CGFloat = 62
-    private let radius: CGFloat = 10
 
-    private var visiblePhotos: [PendingPhoto] { Array(photos.prefix(maxVisible)) }
-    private var overflow: Int {
-        guard photos.count > maxVisible else { return 0 }
-        return photos.count - (maxVisible - 1)
-    }
-    private var showOverflow: Bool { photos.count > maxVisible }
+    private var stackPhotos: [PendingPhoto] { Array(photos.prefix(3)) }
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(visiblePhotos.enumerated()), id: \.element.id) { idx, photo in
-                let isOverflowSlot = showOverflow && idx == maxVisible - 1
-                ZStack {
-                    RoundedRectangle(cornerRadius: radius)
-                        .fill(palette[photo.mockColorSeed % palette.count])
-                        .frame(width: thumbSize, height: thumbSize)
-
-                    if !isOverflowSlot {
-                        Image(systemName: photo.isVideo ? "play.circle.fill" : "photo")
-                            .font(.system(size: photo.isVideo ? 20 : 16))
-                            .foregroundColor(.white.opacity(0.7))
-                    }
-
-                    if isOverflowSlot {
-                        RoundedRectangle(cornerRadius: radius)
-                            .fill(Color.black.opacity(0.38))
-                        Text("+\(overflow)")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                    }
+        let n = stackPhotos.count
+        ZStack {
+            if n == 0 {
+                // Placeholder when no photos yet
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Theme.Colors.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Theme.Colors.border, lineWidth: 0.5)
+                    )
+                    .overlay(
+                        Image(systemName: "photo.stack")
+                            .font(.system(size: 26))
+                            .foregroundColor(Theme.Colors.textMuted.opacity(0.4))
+                    )
+                    .frame(width: frameSize, height: frameSize)
+            } else {
+                // Back layer (index 2) — most rotated
+                if n >= 3 {
+                    FannedPhotoFrame(
+                        photo: stackPhotos[2],
+                        size: frameSize,
+                        fallbackColor: palette[stackPhotos[2].mockColorSeed % palette.count]
+                    )
+                    .rotationEffect(.degrees(-8))
+                    .offset(x: -5, y: 5)
                 }
-                .frame(width: thumbSize, height: thumbSize)
-                .clipShape(RoundedRectangle(cornerRadius: radius))
+                // Middle layer (index 1)
+                if n >= 2 {
+                    FannedPhotoFrame(
+                        photo: stackPhotos[1],
+                        size: frameSize,
+                        fallbackColor: palette[stackPhotos[1].mockColorSeed % palette.count]
+                    )
+                    .rotationEffect(.degrees(5))
+                    .offset(x: 4, y: -3)
+                }
+                // Front layer (index 0) — on top, straight
+                FannedPhotoFrame(
+                    photo: stackPhotos[0],
+                    size: frameSize,
+                    fallbackColor: palette[stackPhotos[0].mockColorSeed % palette.count]
+                )
+                .rotationEffect(.degrees(0.5))
             }
-
-            Spacer()
         }
+        .frame(width: frameSize + 20, height: frameSize + 20)
     }
 }
 
-// MARK: - RecipientAvatarsRow
+private struct FannedPhotoFrame: View {
+    let photo: PendingPhoto
+    let size: CGFloat
+    let fallbackColor: Color
+    @State private var thumbnail: UIImage?
 
-struct RecipientAvatarsRow: View {
-    let names: [String]
-    private let maxVisible = 4
-    private let size: CGFloat = 26
-
-    private var visible: [String] { Array(names.prefix(maxVisible)) }
-    private var overflow: Int { max(0, names.count - maxVisible) }
+    private let borderSize: CGFloat = 5
 
     var body: some View {
-        HStack(spacing: -7) {
-            ForEach(visible, id: \.self) { name in
-                AvatarView(name: name, size: size)
-                    .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 1.5))
-            }
-            if overflow > 0 {
-                ZStack {
-                    Circle()
-                        .fill(Theme.Colors.surface)
+        ZStack {
+            // White "print" border
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color.white)
+                .shadow(color: .black.opacity(0.18), radius: 5, x: 0, y: 2)
+                .frame(width: size + borderSize * 2, height: size + borderSize * 2)
+
+            // Photo content
+            Group {
+                if let img = thumbnail {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
                         .frame(width: size, height: size)
-                        .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 1.5))
-                    Text("+\(overflow)")
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
-                        .foregroundColor(Theme.Colors.textMuted)
+                        .clipped()
+                } else {
+                    Rectangle()
+                        .fill(fallbackColor)
+                        .frame(width: size, height: size)
+                        .overlay(
+                            Image(systemName: photo.isVideo ? "video.fill" : "photo")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white.opacity(0.75))
+                        )
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            // Video badge
+            if photo.isVideo {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+            }
+        }
+        .task(id: photo.id) {
+            guard let asset = photo.asset else { return }
+            thumbnail = await loadThumbnail(asset: asset)
+        }
+    }
+
+    private func loadThumbnail(asset: PHAsset) async -> UIImage? {
+        await withCheckedContinuation { cont in
+            let opts = PHImageRequestOptions()
+            opts.deliveryMode = .highQualityFormat
+            opts.isNetworkAccessAllowed = true
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: CGSize(width: 160, height: 160),
+                contentMode: .aspectFill,
+                options: opts
+            ) { img, _ in cont.resume(returning: img) }
         }
     }
 }
@@ -144,101 +193,132 @@ struct UnsentCard: View {
     let onReview: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var uploadProgress: Double? { UploadManager.shared.progress[batch.id] }
+    private var isUploading: Bool { uploadProgress != nil && !(UploadManager.shared.completed[batch.id] ?? false) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            headerSection
-            divider
-            thumbnailSection
-            divider
-            detailsSection
-            divider
-            recipientsSection
-            divider
-            actionSection
+            heroSection
+            recipientsRow
+            if isUploading {
+                uploadingSection
+            } else {
+                actionSection
+            }
         }
         .background(Theme.Colors.background)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.07), radius: 14, x: 0, y: 4)
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
+            RoundedRectangle(cornerRadius: 20)
                 .stroke(Theme.Colors.border, lineWidth: 0.5)
         )
-        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 3)
+        .allowsHitTesting(!isUploading)
     }
 
-    // MARK: Header
+    // MARK: Hero — fanned photo stack + session metadata
 
-    private var headerSection: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
+    private var heroSection: some View {
+        HStack(alignment: .center, spacing: 14) {
+            // Fanned photo stack with count badge (badge hidden when 0)
+            ZStack(alignment: .bottomTrailing) {
+                FannedPhotoStack(photos: batch.photos, frameSize: 76)
+
+                if batch.photos.count > 0 {
+                    Text("\(batch.photos.count)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Theme.Colors.accent)
+                        .clipShape(Capsule())
+                        .shadow(color: Theme.Colors.accent.opacity(0.4), radius: 4, x: 0, y: 2)
+                        .offset(x: 4, y: 4)
+                }
+            }
+
+            // Session info
+            VStack(alignment: .leading, spacing: 6) {
                 Text(batch.sessionName)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(Theme.Typography.heading)
                     .foregroundColor(Theme.Colors.textPrimary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+
+                // Photo count line (shown when photos exist)
                 let c = batch.photos.count
-                Text("\(c) \(c == 1 ? "photo" : "photos") waiting")
-                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                    .foregroundColor(Theme.Colors.textSecondary)
+                if c > 0 {
+                    Text("\(c) \(c == 1 ? "shot" : "shots") to review")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.Colors.accent)
+                }
+
+                // Duration row
+                HStack(spacing: 5) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(Theme.Colors.textMuted)
+                    Text(windowString)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.Colors.textSecondary)
+                }
+
+                CountdownChip(expiresAt: batch.expiresAt)
             }
-            Spacer(minLength: 8)
-            CountdownChip(expiresAt: batch.expiresAt)
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 14)
+        .padding(.top, 18)
+        .padding(.bottom, 16)
     }
 
-    // MARK: Thumbnails
+    // MARK: Recipients row
 
-    private var thumbnailSection: some View {
-        ThumbnailPreviewStrip(photos: batch.photos)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-    }
-
-    // MARK: Roll details
-
-    private var detailsSection: some View {
-        HStack(spacing: 20) {
-            detailItem(icon: "play.circle.fill", label: "Started", value: timeString(batch.rollingStartedAt))
-            detailItem(icon: "stop.circle.fill", label: "Ended", value: dateTimeString(batch.rollingStoppedAt))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-    }
-
-    private func detailItem(icon: String, label: String, value: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundColor(Theme.Colors.accent.opacity(0.7))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(label)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(Theme.Colors.textMuted)
-                Text(value)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(Theme.Colors.textSecondary)
-            }
-        }
-    }
-
-    // MARK: Recipients
-
-    private var recipientsSection: some View {
-        HStack(spacing: 10) {
+    private var recipientsRow: some View {
+        HStack(spacing: 8) {
             Image(systemName: "paperplane.fill")
-                .font(.system(size: 11))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(Theme.Colors.textMuted)
-            Text("Going to")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundColor(Theme.Colors.textMuted)
-            RecipientAvatarsRow(names: batch.recipientNames)
+            Text(recipientLabel)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(Theme.Colors.textSecondary)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            AvatarCluster(names: batch.recipientNames, size: 22, maxVisible: 3)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
+        .background(Theme.Colors.surface)
     }
 
-    // MARK: Action
+    // MARK: Upload progress section
+
+    private var uploadingSection: some View {
+        let pct = Int((uploadProgress ?? 0) * 100)
+        return VStack(spacing: 8) {
+            HStack {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.Colors.accent)
+                Text("Uploading \(pct)%")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(Theme.Colors.accent)
+                Spacer()
+            }
+            ProgressView(value: uploadProgress ?? 0)
+                .progressViewStyle(.linear)
+                .tint(Theme.Colors.accent)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(Theme.Colors.accentTint)
+        .clipShape(UnevenRoundedRectangle(
+            topLeadingRadius: 0, bottomLeadingRadius: 20,
+            bottomTrailingRadius: 20, topTrailingRadius: 0
+        ))
+    }
+
+    // MARK: Action button
 
     private var actionSection: some View {
         Button {
@@ -246,41 +326,51 @@ struct UnsentCard: View {
             onReview()
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle")
-                    .font(.system(size: 15, weight: .semibold))
+                Image(systemName: "eye.fill")
+                    .font(.system(size: 14, weight: .semibold))
                 Text("Review & send")
                     .font(Theme.Typography.label)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 13, weight: .semibold))
             }
             .foregroundColor(.white)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .frame(maxWidth: .infinity, minHeight: 50)
             .background(Theme.Colors.accent)
-            .clipShape(Capsule())
-            .shadow(color: Theme.Colors.accent.opacity(0.28), radius: 10, x: 0, y: 4)
+            .clipShape(UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 20,
+                bottomTrailingRadius: 20,
+                topTrailingRadius: 0
+            ))
+            .shadow(color: Theme.Colors.accent.opacity(0.3), radius: 12, x: 0, y: 5)
         }
         .buttonStyle(SpringTapStyle(scaleAmount: 0.97))
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
     }
 
     // MARK: Helpers
 
-    private var divider: some View {
-        Rectangle()
-            .fill(Theme.Colors.border)
-            .frame(height: 0.5)
-            .padding(.horizontal, 16)
+    private var windowString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        let dateStr = formatter.string(from: batch.rollingStartedAt)
+        let duration = batch.rollingStoppedAt.timeIntervalSince(batch.rollingStartedAt)
+        let hours = Int(duration) / 3600
+        let minutes = (Int(duration) % 3600) / 60
+        if hours > 0 {
+            return "\(dateStr) · \(hours)h \(minutes)m"
+        }
+        return "\(dateStr) · \(max(1, minutes))m"
     }
 
-    private func timeString(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "h:mm a"
-        return f.string(from: d)
-    }
-
-    private func dateTimeString(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "h:mm a, MMM d"
-        return f.string(from: d)
+    private var recipientLabel: String {
+        let names = batch.recipientNames
+        switch names.count {
+        case 0: return "No recipients"
+        case 1: return names[0]
+        case 2: return "\(names[0]) & \(names[1])"
+        case 3: return "\(names[0]), \(names[1]) & \(names[2])"
+        default: return "\(names[0]), \(names[1]) & \(names.count - 2) more"
+        }
     }
 }
 
@@ -321,14 +411,21 @@ struct UnsentView: View {
                     listVisible = true
                 }
             }
+            .onChange(of: showingReview) { _, reviewing in
+                viewModel.isReviewing = reviewing
+            }
             .navigationDestination(isPresented: $showingReview) {
                 if let batch = reviewBatch {
                     ReviewPhotoGridView(
                         photos: batch.photos,
-                        isSending: viewModel.isSending
+                        isSending: viewModel.isSending,
+                        recipientNames: batch.recipientNames,
+                        rollingWindow: (start: batch.rollingStartedAt, end: batch.rollingStoppedAt)
                     ) { selected in
                         Task {
                             await viewModel.sendPhotos(selected)
+                            // Let the film-developing + success animation finish before popping
+                            try? await Task.sleep(nanoseconds: 2_000_000_000)
                             showingReview = false
                         }
                     }
@@ -348,18 +445,24 @@ struct UnsentView: View {
     // MARK: Header
 
     private var header: some View {
-        PageHeader(
-            title: "Unsent",
-            subtitle: viewModel.pendingBatches.isEmpty ? nil :
-                "\(viewModel.totalPhotoCount) \(viewModel.totalPhotoCount == 1 ? "photo" : "photos") waiting"
-        )
+        PageHeader(title: "Unsent", subtitle: headerSubtitle)
+    }
+
+    private var headerSubtitle: String? {
+        guard !viewModel.pendingBatches.isEmpty else { return nil }
+        let total = viewModel.totalPhotoCount
+        if total > 0 {
+            return "\(total) \(total == 1 ? "photo" : "photos") waiting"
+        }
+        let n = viewModel.pendingBatches.count
+        return "\(n) \(n == 1 ? "roll" : "rolls") to review"
     }
 
     // MARK: Batch list
 
     private var batchList: some View {
         ScrollView {
-            VStack(spacing: 14) {
+            VStack(spacing: 16) {
                 Spacer().frame(height: 8)
 
                 ForEach(Array(viewModel.pendingBatches.enumerated()), id: \.element.id) { idx, batch in
@@ -369,10 +472,10 @@ struct UnsentView: View {
                     }
                     .padding(.horizontal, 16)
                     .opacity(listVisible ? 1 : 0)
-                    .offset(y: listVisible ? 0 : 24)
+                    .offset(y: listVisible ? 0 : 28)
                     .animation(
                         reduceMotion ? .none :
-                            .spring(response: 0.5, dampingFraction: 0.82)
+                            .spring(response: 0.52, dampingFraction: 0.80)
                             .delay(Double(idx) * 0.10),
                         value: listVisible
                     )
@@ -385,7 +488,7 @@ struct UnsentView: View {
                     )
                 }
 
-                Spacer().frame(height: 40)
+                Spacer().frame(height: 48)
             }
             .animation(.spring(response: 0.42, dampingFraction: 0.82), value: viewModel.pendingBatches.map(\.id))
         }
@@ -396,32 +499,73 @@ struct UnsentView: View {
     private var emptyState: some View {
         VStack(spacing: 0) {
             Spacer()
-            VStack(spacing: Theme.Spacing.xl) {
-                ZStack {
-                    Circle()
-                        .fill(Theme.Colors.accentTint)
-                        .frame(width: 100, height: 100)
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 42))
-                        .foregroundColor(Theme.Colors.accent)
-                }
 
+            VStack(spacing: Theme.Spacing.xl) {
+                UnsentEmptyAnimation()
+
+                // Copy
                 VStack(spacing: Theme.Spacing.sm) {
-                    Text("You're all caught up")
-                        .font(Theme.Typography.heading)
+                    Text("All caught up!")
+                        .font(Theme.Typography.title)
                         .foregroundColor(Theme.Colors.textPrimary)
-                    Text("Photos from your rolls will\nshow up here to review before they go out.")
+
+                    Text("Go make some memories — shots from your\nrolls will show up here to review before they go out.")
                         .font(Theme.Typography.body)
                         .foregroundColor(Theme.Colors.textSecondary)
                         .multilineTextAlignment(.center)
-                        .lineSpacing(3)
+                        .lineSpacing(4)
                         .padding(.horizontal, Theme.Spacing.xl)
                 }
             }
+
             Spacer()
         }
         .opacity(listVisible ? 1 : 0)
         .animation(reduceMotion ? .none : .easeIn(duration: 0.4), value: listVisible)
+    }
+}
+
+// MARK: - UnsentEmptyAnimation
+
+private struct UnsentEmptyAnimation: View {
+    @State private var floating = false
+    @State private var sparkle1 = false
+    @State private var sparkle2 = false
+    @State private var sparkle3 = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            sparkleView(offset: CGSize(width: -52, height: -30), visible: sparkle1)
+            sparkleView(offset: CGSize(width: 54, height: -38), visible: sparkle2)
+            sparkleView(offset: CGSize(width: 46, height: 28),  visible: sparkle3)
+
+            ZStack {
+                Circle()
+                    .fill(Theme.Colors.accentTint)
+                    .frame(width: 112, height: 112)
+                Image(systemName: "photo.stack.fill")
+                    .font(.system(size: 40))
+                    .foregroundColor(Theme.Colors.accent)
+            }
+            .offset(y: floating ? -8 : 0)
+            .shadow(color: Theme.Colors.accent.opacity(0.18), radius: floating ? 18 : 8, x: 0, y: floating ? 10 : 4)
+        }
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) { floating = true }
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true).delay(0.0)) { sparkle1 = true }
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true).delay(0.4)) { sparkle2 = true }
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true).delay(0.8)) { sparkle3 = true }
+        }
+    }
+
+    private func sparkleView(offset: CGSize, visible: Bool) -> some View {
+        Image(systemName: "sparkle")
+            .font(.system(size: 18, weight: .bold))
+            .foregroundColor(Theme.Colors.accent.opacity(visible ? 0.8 : 0.2))
+            .scaleEffect(visible ? 1 : 0.5)
+            .offset(offset)
     }
 }
 

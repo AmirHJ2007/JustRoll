@@ -34,6 +34,15 @@
 	<string>JustRoll reads photos you took during a roll to share them with the people who were there.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>JustRoll saves received photos to your camera roll.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>JustRoll finds nearby friends using your local network.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>JustRoll uses Bluetooth to find friends nearby when joining a roll.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_justroll-join._tcp</string>
+		<string>_justroll-join._udp</string>
+	</array>
 	<key>UISupportedInterfaceOrientations~iphone</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

@@ -5,4 +5,5 @@ struct User: Identifiable, Equatable {
     let email: String
     let name: String
     let username: String
+    var avatarId: Int? = nil
 }

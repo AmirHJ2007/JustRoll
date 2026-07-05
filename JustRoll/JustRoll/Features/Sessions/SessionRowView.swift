@@ -20,7 +20,7 @@ struct MemberAvatar: View {
     var body: some View {
         VStack(spacing: 7) {
             ZStack(alignment: .bottomTrailing) {
-                AvatarView(name: member.name, size: Self.avatarSize)
+                AvatarView(name: member.name, size: Self.avatarSize, avatarId: member.avatarId)
 
                 Circle()
                     .fill(dotColor)
@@ -31,7 +31,7 @@ struct MemberAvatar: View {
             }
             Text(firstName(member.name))
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundColor(Theme.Colors.textSecondary)
+                .foregroundColor(Color(hex: 0x4A4F4D))
                 .lineLimit(1)
         }
         .onAppear {
@@ -41,6 +41,43 @@ struct MemberAvatar: View {
 
     private func firstName(_ name: String) -> String {
         String(name.split(separator: " ").first ?? Substring(name))
+    }
+}
+
+// MARK: - CompactMemberBubble (overlapping avatar in CircleCard member row)
+
+private struct CompactMemberBubble: View {
+    let member: SessionMember
+    var isRolling: Bool
+    var index: Int
+    @State private var appeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let size: CGFloat = 36
+    private static let dotSize: CGFloat = 9
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            AvatarView(name: member.name, size: Self.size, avatarId: member.avatarId)
+                .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 2))
+
+            if isRolling {
+                Circle()
+                    .fill(Color(hex: 0x50C878))
+                    .frame(width: Self.dotSize, height: Self.dotSize)
+                    .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 1.5))
+                    .scaleEffect(appeared ? 1 : 0.2)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.55), value: appeared)
+            }
+        }
+        .scaleEffect(appeared ? 1 : 0.5)
+        .opacity(appeared ? 1 : 0)
+        .onAppear {
+            let delay = reduceMotion ? 0.0 : Double(index) * 0.06
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.62).delay(delay)) {
+                appeared = true
+            }
+        }
     }
 }
 
@@ -63,6 +100,47 @@ struct ElapsedTimerLabel: View {
         let h = s / 3600; let m = (s % 3600) / 60
         if h > 0 { return "\(h)h \(m)m" }
         return String(format: "%d:%02d", m, s % 60)
+    }
+}
+
+// MARK: - DisposableCountdownBadge
+
+struct DisposableCountdownBadge: View {
+    let createdAt: Date
+    private let lifetime: TimeInterval = 24 * 3600
+
+    var body: some View {
+        TimelineView(.periodic(from: createdAt, by: 60)) { ctx in
+            let remaining = max(0, lifetime - ctx.date.timeIntervalSince(createdAt))
+            let color = badgeColor(remaining: remaining)
+            HStack(spacing: 4) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 9, weight: .bold))
+                Text(label(remaining: remaining))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+            .contentTransition(.numericText())
+            .animation(.spring(response: 0.3), value: label(remaining: remaining))
+        }
+    }
+
+    private func badgeColor(remaining: TimeInterval) -> Color {
+        if remaining > 16 * 3600 { return Theme.Colors.accent }           // first 8 h — green
+        if remaining > 8  * 3600 { return Color(hex: 0xD4A017) }         // middle 8 h — yellow
+        return Theme.Colors.danger                                          // last 8 h — red
+    }
+
+    private func label(remaining: TimeInterval) -> String {
+        guard remaining > 0 else { return "Expired" }
+        let h = Int(remaining) / 3600
+        let m = (Int(remaining) % 3600) / 60
+        if h > 0 { return "\(h)h \(m)m left" }
+        return "\(m)m left"
     }
 }
 
@@ -115,8 +193,7 @@ struct CircleCountdownView: View {
 
 struct InviteCodePanel: View {
     let code: String
-    @State private var codeStartDate = Date()
-    @State private var expired = false
+    let sessionName: String
     @State private var copied = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -125,50 +202,49 @@ struct InviteCodePanel: View {
             VStack(alignment: .leading, spacing: 7) {
                 Text("Invite code")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundColor(Theme.Colors.textMuted)
+                    .foregroundColor(Color(hex: 0x6B716D))
 
-                if expired {
-                    Button {
-                        codeStartDate = Date()
-                        withAnimation(.spring(response: 0.3)) { expired = false }
-                    } label: {
-                        Text("Generate new code")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(Theme.Colors.accent)
+                Button {
+                    UIPasteboard.general.string = code
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    withAnimation(.spring(response: 0.3)) { copied = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation { copied = false }
                     }
-                    .buttonStyle(.plain)
-                } else {
-                    Button {
-                        UIPasteboard.general.string = code
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        withAnimation(.spring(response: 0.3)) { copied = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                            withAnimation { copied = false }
-                        }
-                    } label: {
-                        HStack(spacing: 9) {
-                            Text(copied ? "Copied!" : code)
-                                .font(.system(size: 24, weight: .bold, design: .monospaced))
-                                .tracking(copied ? 0 : 3.5)
-                                .foregroundColor(copied ? Theme.Colors.accent : Theme.Colors.textPrimary)
-                            Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(copied ? Theme.Colors.accent : Theme.Colors.textMuted)
-                        }
+                } label: {
+                    HStack(spacing: 9) {
+                        Text(copied ? "Copied!" : code)
+                            .font(.system(size: 24, weight: .bold, design: .monospaced))
+                            .tracking(copied ? 0 : 3.5)
+                            .foregroundColor(copied ? Theme.Colors.accent : Theme.Colors.textPrimary)
+                        Image(systemName: copied ? "checkmark.circle.fill" : "doc.on.doc")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(copied ? Theme.Colors.accent : Color(hex: 0x6B716D))
                     }
-                    .buttonStyle(.plain)
-                    .animation(.spring(response: 0.25), value: copied)
                 }
+                .buttonStyle(.plain)
+                .animation(.spring(response: 0.25), value: copied)
             }
 
             Spacer()
 
-            if !expired {
-                CircleCountdownView(startDate: codeStartDate, onExpire: {
-                    withAnimation { expired = true }
-                })
-                .id(codeStartDate)
+            ShareLink(
+                item: "Join my circle \"\(sessionName)\" on JustRoll! Code: \(code) — https://justroll.app/join/\(code)"
+            ) {
+                HStack(spacing: 5) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Share")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 14)
+                .frame(height: 36)
+                .background(Theme.Colors.accent)
+                .clipShape(Capsule())
+                .shadow(color: Theme.Colors.accent.opacity(0.3), radius: 6, x: 0, y: 2)
             }
+            .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 15)
@@ -194,89 +270,154 @@ struct InviteCodePanel: View {
 struct CircleCard: View {
     let session: Session
     var viewModel: SessionsViewModel
+    var onRollingStarted: ((Session) -> Void)? = nil
+    /// Called (on main actor) after stop if the rolling window contained zero photos/videos.
+    var onRollingStoppedEmpty: ((Session) -> Void)? = nil
 
     @State private var isRolling: Bool
     @State private var myUserId: String?
     @State private var showInviteCode = false
     @State private var showDeleteAlert = false
-    @State private var showStopDisposableAlert = false
+    // Glow border animation
+    @State private var glowAngle: Double = 0
+    // Breathing shadow
+    @State private var shadowBreath: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var showCodeOnAppear: Bool = false
 
-    init(session: Session, viewModel: SessionsViewModel, showCodeOnAppear: Bool = false) {
+    init(session: Session, viewModel: SessionsViewModel, showCodeOnAppear: Bool = false,
+         onRollingStarted: ((Session) -> Void)? = nil,
+         onRollingStoppedEmpty: ((Session) -> Void)? = nil) {
         self.session = session
         self.viewModel = viewModel
         self._isRolling = State(initialValue: session.status == .active)
         self.showCodeOnAppear = showCodeOnAppear
+        self.onRollingStarted = onRollingStarted
+        self.onRollingStoppedEmpty = onRollingStoppedEmpty
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             cardHeader
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
+                .padding(.top, 14)
 
             memberRow
-                .padding(.top, 14)
+                .padding(.top, 10)
 
             Rectangle()
                 .fill(Theme.Colors.border)
                 .frame(height: 0.5)
                 .padding(.horizontal, 16)
-                .padding(.top, 14)
+                .padding(.top, 10)
 
             actionRow
                 .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, showInviteCode ? 10 : 16)
+                .padding(.top, 8)
+                .padding(.bottom, showInviteCode ? 8 : 14)
 
             if showInviteCode {
-                InviteCodePanel(code: session.code)
+                InviteCodePanel(code: session.code, sessionName: session.displayName)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 12)
             }
         }
         .background(Theme.Colors.background)
         .clipShape(RoundedRectangle(cornerRadius: 18))
+        // Static base border — hairline, fades out when rolling (glow takes over)
         .overlay(
             RoundedRectangle(cornerRadius: 18)
                 .stroke(
-                    isRolling ? Theme.Colors.accent.opacity(0.28) : Theme.Colors.border,
-                    lineWidth: isRolling ? 1.5 : 0.5
+                    isRolling ? Theme.Colors.accent.opacity(0.18) : Theme.Colors.border,
+                    lineWidth: isRolling ? 0.5 : 0.5
                 )
         )
+        // Animated traveling glow border — rolling state only
+        .overlay {
+            if isRolling {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(
+                        AngularGradient(
+                            gradient: Gradient(stops: [
+                                .init(color: .clear,                               location: 0.0),
+                                .init(color: Theme.Colors.accent.opacity(0.45),    location: 0.35),
+                                .init(color: Theme.Colors.accent.opacity(0.95),    location: 0.5),
+                                .init(color: Theme.Colors.accent.opacity(0.45),    location: 0.65),
+                                .init(color: .clear,                               location: 1.0),
+                            ]),
+                            center: .center,
+                            startAngle: .degrees(glowAngle - 60),
+                            endAngle: .degrees(glowAngle + 60)
+                        ),
+                        lineWidth: 2
+                    )
+                    .transition(.opacity)
+            }
+        }
+        // Breathing shadow
         .shadow(
-            color: isRolling ? Theme.Colors.accent.opacity(0.15) : Color.black.opacity(0.04),
-            radius: isRolling ? 18 : 6,
-            x: 0, y: isRolling ? 5 : 2
+            color: isRolling
+                ? Theme.Colors.accent.opacity(shadowBreath ? 0.24 : 0.10)
+                : Color.black.opacity(0.04),
+            radius: isRolling ? (shadowBreath ? 22 : 10) : 6,
+            x: 0,
+            y: isRolling ? (shadowBreath ? 7 : 3) : 2
         )
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: isRolling)
         .animation(.spring(response: 0.4, dampingFraction: 0.82), value: showInviteCode)
         .onAppear {
             if showCodeOnAppear { showInviteCode = true }
             myUserId = viewModel.currentUserId
+            updateGlowAnimation()
+            updateBreathAnimation()
         }
-        .alert("Delete circle?", isPresented: $showDeleteAlert) {
-            Button("Delete", role: .destructive) {
+        .onChange(of: isRolling) { _, _ in
+            updateGlowAnimation()
+            updateBreathAnimation()
+        }
+        .alert("Leave circle?", isPresented: $showDeleteAlert) {
+            Button("Leave", role: .destructive) {
                 Task { await viewModel.deleteSession(session) }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("\"\(session.displayName)\" will be removed for everyone. This can't be undone.")
-        }
-        .alert("Stop and delete circle?", isPresented: $showStopDisposableAlert) {
-            Button("Stop & Delete", role: .destructive) {
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = false }
-                Task { await viewModel.leaveSession(session) }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Stopping a disposable circle deletes it for everyone.")
+            Text("You'll leave \"\(session.displayName)\". Others in the circle can still use it.")
         }
     }
 
-    // MARK: Card header
+    // MARK: - Animation helpers
+
+    private func updateGlowAnimation() {
+        guard !reduceMotion else {
+            glowAngle = 0
+            return
+        }
+        if isRolling {
+            glowAngle = 0
+            withAnimation(.linear(duration: 2.5).repeatForever(autoreverses: false)) {
+                glowAngle = 360
+            }
+        } else {
+            withAnimation(.none) { glowAngle = 0 }
+        }
+    }
+
+    private func updateBreathAnimation() {
+        guard !reduceMotion else {
+            shadowBreath = false
+            return
+        }
+        if isRolling {
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
+                shadowBreath = true
+            }
+        } else {
+            withAnimation(.easeInOut(duration: 0.3)) { shadowBreath = false }
+        }
+    }
+
+    // MARK: - Card header
 
     private var creatorLine: String {
         if session.creatorId == viewModel.currentUserId {
@@ -307,29 +448,25 @@ struct CircleCard: View {
                 }
 
                 if session.kind == .disposable {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bolt.fill")
-                            .font(.system(size: 9, weight: .bold))
-                        Text("Disposable")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundColor(Color(hex: 0xE07B39))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color(hex: 0xE07B39).opacity(0.12))
-                    .clipShape(Capsule())
+                    DisposableCountdownBadge(createdAt: session.createdAt)
                 }
             }
 
             Spacer()
 
             if isRolling {
+                // "● Rolling" badge with pulsing dot + elapsed timer
                 HStack(spacing: 6) {
                     LivePulseDot()
-                    ElapsedTimerLabel(startDate: session.createdAt)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Rolling")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(Theme.Colors.accent)
+                        ElapsedTimerLabel(startDate: session.createdAt)
+                    }
                 }
                 .padding(.horizontal, 10)
-                .padding(.vertical, 5)
+                .padding(.vertical, 6)
                 .background(Theme.Colors.accentTint)
                 .clipShape(Capsule())
                 .transition(.scale(scale: 0.78).combined(with: .opacity))
@@ -338,42 +475,56 @@ struct CircleCard: View {
         .animation(.spring(response: 0.36, dampingFraction: 0.72), value: isRolling)
     }
 
-    // MARK: Member row
+    // MARK: - Member row
 
     @ViewBuilder
     private var memberRow: some View {
         let members = session.members
-        if members.count <= 4 {
-            // Spread evenly across the full card width
-            HStack(spacing: 0) {
-                ForEach(members) { member in
-                    MemberAvatar(
-                        member: member,
-                        isCurrentUserRolling: isRolling && member.id == myUserId
-                    )
-                    .frame(maxWidth: .infinity)
-                }
+        let maxVisible = 5
+        let visible = Array(members.prefix(maxVisible))
+        let overflow = max(0, members.count - maxVisible)
+        let firstNames = members.map { String($0.name.split(separator: " ").first ?? Substring($0.name)) }
+        let memberLabel: String = {
+            switch firstNames.count {
+            case 0:  return ""
+            case 1:  return firstNames[0]
+            case 2:  return "\(firstNames[0]) & \(firstNames[1])"
+            case 3:  return "\(firstNames[0]), \(firstNames[1]) & \(firstNames[2])"
+            default: return "\(firstNames[0]), \(firstNames[1]) & \(firstNames.count - 2) more"
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-        } else {
-            // Too many to spread — scroll horizontally
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 20) {
-                    ForEach(members) { member in
-                        MemberAvatar(
-                            member: member,
-                            isCurrentUserRolling: isRolling && member.id == myUserId
+        }()
+
+        HStack(alignment: .center, spacing: 8) {
+            // Overlapping avatar stack — leftmost avatar sits on top (descending zIndex)
+            HStack(spacing: -10) {
+                ForEach(Array(visible.enumerated()), id: \.offset) { idx, member in
+                    let rolling = member.isRolling || (isRolling && member.id == myUserId)
+                    CompactMemberBubble(member: member, isRolling: rolling, index: idx)
+                        .zIndex(Double(maxVisible - idx))
+                }
+                if overflow > 0 {
+                    Circle()
+                        .fill(Theme.Colors.surface)
+                        .frame(width: 36, height: 36)
+                        .overlay(Circle().stroke(Theme.Colors.background, lineWidth: 2))
+                        .overlay(
+                            Text("+\(overflow)")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundColor(Theme.Colors.textMuted)
                         )
-                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
             }
+
+            Text(memberLabel)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(Theme.Colors.textSecondary)
+                .lineLimit(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
     }
 
-    // MARK: Action row
+    // MARK: - Action row
 
     private var actionRow: some View {
         HStack(spacing: 10) {
@@ -414,7 +565,7 @@ struct CircleCard: View {
 
             if session.kind == .lasting {
                 Button { showDeleteAlert = true } label: {
-                    Image(systemName: "trash")
+                    Image(systemName: "rectangle.portrait.and.arrow.right")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(Theme.Colors.danger)
                         .frame(width: 46, height: 46)
@@ -426,19 +577,31 @@ struct CircleCard: View {
         }
     }
 
-    // MARK: Rolling toggle
+    // MARK: - Rolling toggle
 
     private func toggleRolling() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         if isRolling {
-            if session.kind == .disposable {
-                showStopDisposableAlert = true
-            } else {
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = false }
-                Task { await viewModel.stopRolling(session) }
+            // Capture the rolling window BEFORE stopRolling clears / overwrites state
+            let windowStart = session.members.first(where: { $0.id == myUserId })?.rollingStartedAt
+            let windowStop  = Date()
+
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = false }
+            Task {
+                await viewModel.stopRolling(session)
+
+                // Count assets off the main thread so we never block the UI
+                if let start = windowStart {
+                    let count = await Task.detached(priority: .userInitiated) {
+                        SessionsViewModel.countAssetsInWindow(from: start, to: windowStop)
+                    }.value
+                    // count == -1 means permission not granted — skip the overlay
+                    if count == 0 { onRollingStoppedEmpty?(session) }
+                }
             }
         } else {
             withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = true }
+            onRollingStarted?(session)
             Task { await viewModel.startRolling(session) }
         }
     }
@@ -461,7 +624,10 @@ struct PastCircleRow: View {
                     .foregroundColor(Theme.Colors.textMuted)
             }
             Spacer()
-            AvatarCluster(names: session.members.map(\.name), size: 24, maxVisible: 3)
+            AvatarCluster(
+                names: session.members.map(\.name), size: 24, maxVisible: 3,
+                avatarIds: session.members.map(\.avatarId)
+            )
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)

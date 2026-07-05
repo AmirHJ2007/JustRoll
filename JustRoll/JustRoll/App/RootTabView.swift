@@ -29,14 +29,47 @@ struct RootTabView: View {
             }
             .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                CustomTabBar(
-                    selectedTab: $selectedTab,
-                    unsentBadgeCount: unsentVM.totalPhotoCount
+                if !unsentVM.isReviewing {
+                    CustomTabBar(
+                        selectedTab: $selectedTab,
+                        unsentBadgeCount: unsentVM.totalPhotoCount
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: unsentVM.isReviewing)
+        }
+        .fullScreenCover(isPresented: $showNearby) {
+            NearbyDiscoveryView(
+                currentUserName: service.currentUser?.name ?? "Me",
+                currentUserUsername: service.currentUser?.username ?? "",
+                currentUserAvatarId: service.currentUser?.avatarId
+            )
+        }
+        .onAppear {
+            // Advertise as soon as the app is open so friends on the radar can discover
+            // this device even when it's not on the radar view.
+            if let user = service.currentUser {
+                NearbySessionManager.shared.startAdvertising(
+                    displayName: user.name,
+                    username: user.username,
+                    avatarId: user.avatarId
                 )
             }
         }
-        .fullScreenCover(isPresented: $showNearby) {
-            NearbyDiscoveryView()
+        .onChange(of: NearbySessionManager.shared.pendingJoinInvite?.sessionCode) { _, _ in
+            guard let invite = NearbySessionManager.shared.pendingJoinInvite else { return }
+            NearbySessionManager.shared.pendingJoinInvite = nil
+            Task {
+                // Try joining via code as a fallback (succeeds if creator's backend invite failed).
+                // If creator already added us via backend, the INSERT is a no-op (unique conflict).
+                _ = try? await service.joinSession(code: invite.sessionCode)
+                // Tell SessionsView to reload so the new circle appears immediately.
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .sessionListNeedsRefresh, object: nil)
+                    selectedTab = 0
+                }
+            }
         }
     }
 }
