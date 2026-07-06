@@ -43,6 +43,8 @@
 		<string>_justroll-join._tcp</string>
 		<string>_justroll-join._udp</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UISupportedInterfaceOrientations~iphone</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
