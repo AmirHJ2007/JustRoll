@@ -25,6 +25,7 @@
 		AD000044 /* PhotoExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000044 /* PhotoExporter.swift */; };
 		AD000045 /* UploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000045 /* UploadManager.swift */; };
 		AD000046 /* NearbySessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000046 /* NearbySessionManager.swift */; };
+		AD000098 /* RollStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000047 /* RollStore.swift */; };
 		AD000050 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000050 /* SessionsView.swift */; };
 		AD000051 /* SessionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000051 /* SessionsViewModel.swift */; };
 		AD000052 /* SessionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000052 /* SessionRowView.swift */; };
@@ -36,6 +37,7 @@
 		AD000072 /* ReviewPhotoGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000072 /* ReviewPhotoGridView.swift */; };
 		AD000080 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000080 /* SettingsView.swift */; };
 		AD000085 /* MemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000085 /* MemoryView.swift */; };
+		AD000097 /* MemoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000097 /* MemoryViewModel.swift */; };
 		AD000086 /* ReceivedReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000086 /* ReceivedReviewView.swift */; };
 		AD000090 /* Caveat-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AC000090 /* Caveat-Medium.ttf */; };
 		AD000092 /* ShantellSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = AC000092 /* ShantellSans-Medium.ttf */; };
@@ -68,6 +70,7 @@
 		AC000044 /* PhotoExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoExporter.swift; sourceTree = "<group>"; };
 		AC000045 /* UploadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadManager.swift; sourceTree = "<group>"; };
 		AC000046 /* NearbySessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbySessionManager.swift; sourceTree = "<group>"; };
+		AC000047 /* RollStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollStore.swift; sourceTree = "<group>"; };
 		AC000050 /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
 		AC000051 /* SessionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsViewModel.swift; sourceTree = "<group>"; };
 		AC000052 /* SessionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
@@ -79,6 +82,7 @@
 		AC000072 /* ReviewPhotoGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPhotoGridView.swift; sourceTree = "<group>"; };
 		AC000080 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AC000085 /* MemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryView.swift; sourceTree = "<group>"; };
+		AC000097 /* MemoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModel.swift; sourceTree = "<group>"; };
 		AC000086 /* ReceivedReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceivedReviewView.swift; sourceTree = "<group>"; };
 		AC000090 /* Caveat-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Caveat-Medium.ttf"; sourceTree = "<group>"; };
 		AC000091 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -175,6 +179,7 @@
 				AC000044 /* PhotoExporter.swift */,
 				AC000045 /* UploadManager.swift */,
 				AC000046 /* NearbySessionManager.swift */,
+				AC000047 /* RollStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -261,6 +266,7 @@
 			isa = PBXGroup;
 			children = (
 				AC000085 /* MemoryView.swift */,
+				AC000097 /* MemoryViewModel.swift */,
 				AC000086 /* ReceivedReviewView.swift */,
 			);
 			path = Memory;
@@ -357,6 +363,7 @@
 				AD000044 /* PhotoExporter.swift in Sources */,
 				AD000045 /* UploadManager.swift in Sources */,
 				AD000046 /* NearbySessionManager.swift in Sources */,
+				AD000098 /* RollStore.swift in Sources */,
 				AD000050 /* SessionsView.swift in Sources */,
 				AD000051 /* SessionsViewModel.swift in Sources */,
 				AD000052 /* SessionRowView.swift in Sources */,
@@ -371,6 +378,7 @@
 				AD000095 /* AuthView.swift in Sources */,
 				AD000096 /* OnboardingFlowView.swift in Sources */,
 				AD000085 /* MemoryView.swift in Sources */,
+				AD000097 /* MemoryViewModel.swift in Sources */,
 				AD000086 /* ReceivedReviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

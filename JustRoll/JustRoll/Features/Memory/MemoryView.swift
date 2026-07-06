@@ -3,18 +3,16 @@ import SwiftUI
 // MARK: - MemoryView
 
 struct MemoryView: View {
-    private let service: any SupabaseServiceProtocol
-    @State private var batches: [ReceivedBatch] = []
-    @State private var isLoading = false
+    var viewModel: MemoryViewModel
     @State private var cardsVisible = false
     @State private var reviewBatch: ReceivedBatch?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(service: any SupabaseServiceProtocol = MockSupabaseService.shared) {
-        self.service = service
+    init(viewModel: MemoryViewModel) {
+        self.viewModel = viewModel
     }
 
-    private var totalPhotoCount: Int { batches.reduce(0) { $0 + $1.photos.count } }
+    private var totalPhotoCount: Int { viewModel.batches.reduce(0) { $0 + $1.photos.count } }
 
     var body: some View {
         NavigationStack {
@@ -23,13 +21,13 @@ struct MemoryView: View {
                 VStack(spacing: 0) {
                     PageHeader(
                         title: headerTitle,
-                        subtitle: batches.isEmpty ? nil : headerSubtitle
+                        subtitle: viewModel.batches.isEmpty ? nil : headerSubtitle
                     )
-                    if isLoading && batches.isEmpty {
+                    if viewModel.isLoading && viewModel.batches.isEmpty {
                         Spacer()
                         FilmReelSpinner()
                         Spacer()
-                    } else if batches.isEmpty {
+                    } else if viewModel.batches.isEmpty {
                         emptyState
                     } else {
                         batchList
@@ -39,21 +37,18 @@ struct MemoryView: View {
             .navigationBarHidden(true)
             .task { await load() }
             .sheet(item: $reviewBatch) { batch in
-                ReceivedReviewView(batch: batch) { savedPhotos in
+                ReceivedReviewView(batch: batch) { savedPhotos, dismissedPhotos in
                     Task {
-                        // DB bookkeeping only — download+save happens inside ReceivedReviewView
+                        // DB bookkeeping only — download+save happens inside ReceivedReviewView.
+                        // Photos that failed to save are in neither list, so their
+                        // deliveries stay pending and they resurface on the next fetch.
                         let savedIds = savedPhotos.map(\.id)
-                        let dismissedIds = batch.photos
-                            .filter { !savedIds.contains($0.id) }
-                            .map(\.id)
-                        try? await service.markBatchSaved(
-                            batchId: batch.id,
+                        let dismissedIds = dismissedPhotos.map(\.id)
+                        await viewModel.markSaved(
+                            batch: batch,
                             savedPhotoIds: savedIds,
                             dismissedPhotoIds: dismissedIds
                         )
-                        if let idx = batches.firstIndex(where: { $0.id == batch.id }) {
-                            batches[idx].isSaved = true
-                        }
                         reviewBatch = nil
                     }
                 }
@@ -66,7 +61,7 @@ struct MemoryView: View {
     private var headerTitle: String { "My Memories" }
 
     private var headerSubtitle: String {
-        let b = batches.count
+        let b = viewModel.batches.count
         let p = totalPhotoCount
         return "\(b) \(b == 1 ? "batch" : "batches") · \(p) \(p == 1 ? "photo" : "photos")"
     }
@@ -76,7 +71,7 @@ struct MemoryView: View {
     private var batchList: some View {
         ScrollView {
             VStack(spacing: 16) {
-                ForEach(Array(batches.enumerated()), id: \.element.id) { idx, batch in
+                ForEach(Array(viewModel.batches.enumerated()), id: \.element.id) { idx, batch in
                     ReceivedBatchCard(
                         batch: batch,
                         cardVisible: cardsVisible,
@@ -117,9 +112,7 @@ struct MemoryView: View {
     // MARK: - Load
 
     private func load() async {
-        isLoading = true
-        batches = (try? await service.fetchReceivedBatches()) ?? []
-        isLoading = false
+        await viewModel.load()
         guard !reduceMotion else { cardsVisible = true; return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
@@ -435,5 +428,5 @@ private struct MemoryEmptyAnimation: View {
 }
 
 #Preview {
-    MemoryView()
+    MemoryView(viewModel: MemoryViewModel())
 }

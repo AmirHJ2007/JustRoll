@@ -273,11 +273,14 @@ struct CircleCard: View {
     var onRollingStarted: ((Session) -> Void)? = nil
     /// Called (on main actor) after stop if the rolling window contained zero photos/videos.
     var onRollingStoppedEmpty: ((Session) -> Void)? = nil
+    /// Called (on main actor) after stop if the rolling window contained at least one photo/video.
+    var onRollingStoppedNonEmpty: ((Session) -> Void)? = nil
 
     @State private var isRolling: Bool
     @State private var myUserId: String?
     @State private var showInviteCode = false
     @State private var showDeleteAlert = false
+    @State private var showAloneAlert = false
     // Glow border animation
     @State private var glowAngle: Double = 0
     // Breathing shadow
@@ -288,13 +291,34 @@ struct CircleCard: View {
 
     init(session: Session, viewModel: SessionsViewModel, showCodeOnAppear: Bool = false,
          onRollingStarted: ((Session) -> Void)? = nil,
-         onRollingStoppedEmpty: ((Session) -> Void)? = nil) {
+         onRollingStoppedEmpty: ((Session) -> Void)? = nil,
+         onRollingStoppedNonEmpty: ((Session) -> Void)? = nil) {
         self.session = session
         self.viewModel = viewModel
-        self._isRolling = State(initialValue: session.status == .active)
+        // Seed from MY member row, not the session-wide status — `.active` just means
+        // *someone* is rolling, which could be a different member entirely. `viewModel`
+        // is @MainActor-isolated and this init is not, so `myUserId` can't be resolved
+        // synchronously here (same constraint `toggleRolling` works under) — default to
+        // "not rolling" and correct both `myUserId` and `isRolling` together in onAppear,
+        // before anything is interactive.
+        self._isRolling = State(initialValue: false)
         self.showCodeOnAppear = showCodeOnAppear
         self.onRollingStarted = onRollingStarted
         self.onRollingStoppedEmpty = onRollingStoppedEmpty
+        self.onRollingStoppedNonEmpty = onRollingStoppedNonEmpty
+    }
+
+    /// The current user's own member row's rolling flag, as last synced from the model.
+    /// Used to resync local `isRolling` when the underlying session data changes (e.g.
+    /// after a list reload) without fighting the optimistic local toggle.
+    private var myMemberIsRolling: Bool {
+        session.members.first(where: { $0.id == myUserId })?.isRolling ?? false
+    }
+
+    /// When the current user's active rolling window began — drives the "Rolling" badge
+    /// timer. Falls back to now so a just-started roll reads 0:00, never the circle's age.
+    private var myRollingStartDate: Date {
+        session.members.first(where: { $0.id == myUserId })?.rollingStartedAt ?? Date()
     }
 
     var body: some View {
@@ -369,12 +393,21 @@ struct CircleCard: View {
         .onAppear {
             if showCodeOnAppear { showInviteCode = true }
             myUserId = viewModel.currentUserId
+            // Now that we know which member row is "me", seed the real rolling state
+            // (see the init comment above for why this can't happen synchronously there).
+            isRolling = myMemberIsRolling
             updateGlowAnimation()
             updateBreathAnimation()
         }
         .onChange(of: isRolling) { _, _ in
             updateGlowAnimation()
             updateBreathAnimation()
+        }
+        // Resync local optimistic state if the model changes underneath us (e.g. a
+        // silent list reload) — but only when it actually differs, so this doesn't
+        // fight the optimistic toggle set at tap time.
+        .onChange(of: myMemberIsRolling) { _, newValue in
+            if isRolling != newValue { isRolling = newValue }
         }
         .alert("Leave circle?", isPresented: $showDeleteAlert) {
             Button("Leave", role: .destructive) {
@@ -383,6 +416,11 @@ struct CircleCard: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You'll leave \"\(session.displayName)\". Others in the circle can still use it.")
+        }
+        .alert("You're the only one here", isPresented: $showAloneAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Invite friends before you start rolling — there's no one to share shots with yet.")
         }
     }
 
@@ -462,7 +500,7 @@ struct CircleCard: View {
                         Text("Rolling")
                             .font(.system(size: 11, weight: .bold, design: .rounded))
                             .foregroundColor(Theme.Colors.accent)
-                        ElapsedTimerLabel(startDate: session.createdAt)
+                        ElapsedTimerLabel(startDate: myRollingStartDate)
                     }
                 }
                 .padding(.horizontal, 10)
@@ -588,7 +626,15 @@ struct CircleCard: View {
 
             withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = false }
             Task {
-                await viewModel.stopRolling(session)
+                let succeeded = await viewModel.stopRolling(session)
+                guard succeeded else {
+                    // Server call failed — revert the optimistic toggle and bail out
+                    // before touching asset counts / celebration callbacks.
+                    await MainActor.run {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = true }
+                    }
+                    return
+                }
 
                 // Count assets off the main thread so we never block the UI
                 if let start = windowStart {
@@ -596,10 +642,19 @@ struct CircleCard: View {
                         SessionsViewModel.countAssetsInWindow(from: start, to: windowStop)
                     }.value
                     // count == -1 means permission not granted — skip the overlay
-                    if count == 0 { onRollingStoppedEmpty?(session) }
+                    if count == 0 {
+                        await MainActor.run { onRollingStoppedEmpty?(session) }
+                    } else if count > 0 {
+                        await MainActor.run { onRollingStoppedNonEmpty?(session) }
+                    }
                 }
             }
         } else {
+            guard session.activeMembers.count > 1 else {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                showAloneAlert = true
+                return
+            }
             withAnimation(.spring(response: 0.38, dampingFraction: 0.7)) { isRolling = true }
             onRollingStarted?(session)
             Task { await viewModel.startRolling(session) }

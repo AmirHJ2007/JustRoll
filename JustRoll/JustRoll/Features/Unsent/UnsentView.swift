@@ -284,7 +284,7 @@ struct UnsentCard: View {
                 .foregroundColor(Theme.Colors.textSecondary)
                 .lineLimit(1)
             Spacer(minLength: 4)
-            AvatarCluster(names: batch.recipientNames, size: 22, maxVisible: 3)
+            AvatarCluster(names: batch.recipientNames, size: 22, maxVisible: 3, avatarIds: batch.recipientAvatarIds)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 11)
@@ -414,19 +414,40 @@ struct UnsentView: View {
             .onChange(of: showingReview) { _, reviewing in
                 viewModel.isReviewing = reviewing
             }
+            .onChange(of: viewModel.pendingReviewSessionId) { _, sessionId in
+                guard let sessionId else { return }
+                defer { viewModel.pendingReviewSessionId = nil }
+                // Several unsent cards can share a sessionId (one circle, multiple rolls) —
+                // the freshest stop-rolling is the one just requested, so pick the latest.
+                guard let batch = viewModel.pendingBatches
+                    .filter({ $0.sessionId == sessionId })
+                    .max(by: { $0.rollingStoppedAt < $1.rollingStoppedAt }) else { return }
+                reviewBatch = batch
+                showingReview = true
+            }
             .navigationDestination(isPresented: $showingReview) {
                 if let batch = reviewBatch {
                     ReviewPhotoGridView(
                         photos: batch.photos,
                         isSending: viewModel.isSending,
+                        sendFailed: viewModel.errorMessage != nil,
                         recipientNames: batch.recipientNames,
-                        rollingWindow: (start: batch.rollingStartedAt, end: batch.rollingStoppedAt)
+                        recipientAvatarIds: batch.recipientAvatarIds,
+                        rollingWindow: (start: batch.rollingStartedAt, end: batch.rollingStoppedAt),
+                        batchId: batch.id
                     ) { selected in
                         Task {
-                            await viewModel.sendPhotos(selected)
-                            // Let the film-developing + success animation finish before popping
-                            try? await Task.sleep(nanoseconds: 2_000_000_000)
-                            showingReview = false
+                            await viewModel.sendPhotos(selected, from: batch)
+                            if viewModel.errorMessage != nil {
+                                // ReviewPhotoGridView already reverted to review and is
+                                // showing its own "Couldn't send" alert — stay put so the
+                                // user can retry, and don't also pop the generic alert.
+                                viewModel.errorMessage = nil
+                            } else {
+                                // Let the film-developing + success animation finish before popping
+                                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                showingReview = false
+                            }
                         }
                     }
                 }

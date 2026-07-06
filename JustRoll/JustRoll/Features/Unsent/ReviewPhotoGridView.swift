@@ -4,21 +4,35 @@ import Photos
 struct ReviewPhotoGridView: View {
     @State private var photos: [PendingPhoto]
     var isSending: Bool
+    /// True once `UnsentViewModel.sendPhotos` has failed (errorMessage != nil) for this
+    /// batch — tells the `isSending` fallback below to bail back to review instead of
+    /// playing the success animation.
+    var sendFailed: Bool = false
     let recipientNames: [String]
+    /// Index-aligned with `recipientNames`. `nil` entries fall back to letter initials.
+    var recipientAvatarIds: [Int?] = []
     let rollingWindow: (start: Date, end: Date)?
+    /// The roll's unique id (PendingBatch.id) — keys all UploadManager progress/completed lookups.
+    let batchId: String
     let onSend: ([PendingPhoto]) -> Void
 
     init(
         photos: [PendingPhoto],
         isSending: Bool = false,
+        sendFailed: Bool = false,
         recipientNames: [String] = [],
+        recipientAvatarIds: [Int?] = [],
         rollingWindow: (start: Date, end: Date)? = nil,
+        batchId: String = "",
         onSend: @escaping ([PendingPhoto]) -> Void
     ) {
         self._photos = State(initialValue: photos)
         self.isSending = isSending
+        self.sendFailed = sendFailed
         self.recipientNames = recipientNames
+        self.recipientAvatarIds = recipientAvatarIds
         self.rollingWindow = rollingWindow
+        self.batchId = batchId
         self.onSend = onSend
     }
 
@@ -28,7 +42,6 @@ struct ReviewPhotoGridView: View {
     private var selectedCount: Int { selectedPhotos.count }
     private var allSelected: Bool { photos.allSatisfy(\.isSelected) }
 
-    private var sessionId: String { photos.first?.sessionId ?? "" }
     private var sessionName: String { photos.first?.sessionName ?? "Your roll" }
 
     private let mockPalette: [Color] = [
@@ -42,10 +55,26 @@ struct ReviewPhotoGridView: View {
     @State private var uploadPhase: UploadPhase = .review
     @State private var lastSentCount = 0
     @State private var sentPhotos: [PendingPhoto] = []
+    /// Forced to 1.0 (animated) just before the success phase begins, so the film
+    /// strip always visually finishes developing even if real upload progress lags
+    /// behind or (in the mock path) never moves at all.
+    @State private var forcedProgress: Double = 0
+    /// Fades the whole developing/success overlay stack out ~1.6s into the success
+    /// phase, so the eventual nav-pop (triggered by the caller) lands on an
+    /// already-faded screen instead of cutting away from a fully opaque one.
+    @State private var overlayOpacity: Double = 1
+    /// Drives the "Couldn't send" alert shown when a send fails mid-developing.
+    @State private var showSendFailedAlert = false
+
+    private var displayProgress: Double {
+        max(UploadManager.shared.progress[batchId] ?? 0, forcedProgress)
+    }
 
     // MARK: Grid entrance
     @State private var gridVisible = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismiss) private var dismiss
+    @State private var isExitingToLater = false
 
     var body: some View {
         ZStack {
@@ -58,25 +87,29 @@ struct ReviewPhotoGridView: View {
             }
             .background(Theme.Colors.background.ignoresSafeArea())
             .disabled(uploadPhase != .review)
+            .scaleEffect(isExitingToLater ? 0.94 : 1)
+            .opacity(isExitingToLater ? 0 : 1)
 
-            // ── Film developing overlay (developing + success phases) ──
+            // ── Film developing + success overlay stack (one continuous backdrop) ──
             if uploadPhase != .review {
-                FilmDevelopingOverlay(
-                    photos: sentPhotos,
-                    batchId: sessionId,
-                    palette: mockPalette
-                )
-                .ignoresSafeArea()
-                .transition(.opacity)
-                .zIndex(5)
-            }
-
-            // ── Success overlay ──
-            if uploadPhase == .success {
-                SendSuccessOverlay(count: lastSentCount)
+                ZStack {
+                    FilmDevelopingOverlay(
+                        photos: sentPhotos,
+                        palette: mockPalette,
+                        progress: displayProgress,
+                        contentVisible: uploadPhase == .developing
+                    )
                     .ignoresSafeArea()
-                    .transition(.opacity)
-                    .zIndex(10)
+
+                    if uploadPhase == .success {
+                        SendSuccessOverlay(count: lastSentCount)
+                            .ignoresSafeArea()
+                            .transition(.opacity.combined(with: .scale(scale: 1.04)))
+                    }
+                }
+                .opacity(overlayOpacity)
+                .transition(.opacity.combined(with: .scale(scale: 1.04)))
+                .zIndex(5)
             }
         }
         .animation(.easeInOut(duration: 0.28), value: uploadPhase)
@@ -98,6 +131,10 @@ struct ReviewPhotoGridView: View {
                 .disabled(photos.isEmpty || uploadPhase != .review)
             }
         }
+        // Hide the entire nav bar (title + Select/Deselect button + back button) while
+        // the developing/success overlay is up — it floats above the in-body overlays
+        // otherwise, and mid-upload back navigation isn't something we want anyway.
+        .toolbar(uploadPhase == .review ? .visible : .hidden, for: .navigationBar)
         .onAppear {
             guard !gridVisible else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -108,21 +145,52 @@ struct ReviewPhotoGridView: View {
         }
         // Fallback: isSending → false means the upload completed (mock / no-UploadManager path)
         .onChange(of: isSending) { _, newValue in
-            if !newValue && uploadPhase == .developing {
+            guard !newValue && uploadPhase == .developing else { return }
+            if sendFailed {
+                handleSendFailure()
+            } else {
                 triggerSuccess()
             }
         }
         // Real path: UploadManager finishes the batch
-        .onChange(of: UploadManager.shared.completed[sessionId]) { _, done in
+        .onChange(of: UploadManager.shared.completed[batchId]) { _, done in
             if done == true && uploadPhase == .developing {
                 triggerSuccess()
             }
         }
+        .onChange(of: uploadPhase) { _, phase in
+            guard phase == .success else { return }
+            Task {
+                try? await Task.sleep(nanoseconds: 1_600_000_000)
+                withAnimation(.easeIn(duration: 0.3)) { overlayOpacity = 0 }
+            }
+        }
+        .alert("Couldn't send", isPresented: $showSendFailedAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Your shots are still here — check your connection and try again.")
+        }
     }
 
     private func triggerSuccess() {
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-        withAnimation(.easeIn(duration: 0.25)) { uploadPhase = .success }
+        // Let the film strip visually finish developing before the success screen blooms.
+        withAnimation(.easeOut(duration: 0.35)) { forcedProgress = 1.0 }
+        Task {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { uploadPhase = .success }
+        }
+    }
+
+    private func handleSendFailure() {
+        // Reset the overlay back to its initial state so a retry starts clean.
+        forcedProgress = 0
+        overlayOpacity = 1
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+            uploadPhase = .review
+        }
+        showSendFailedAlert = true
     }
 
     // MARK: - Hero header
@@ -148,7 +216,7 @@ struct ReviewPhotoGridView: View {
             Spacer(minLength: 8)
             if !recipientNames.isEmpty {
                 VStack(alignment: .trailing, spacing: 3) {
-                    AvatarCluster(names: recipientNames, size: 26, maxVisible: 4)
+                    AvatarCluster(names: recipientNames, size: 26, maxVisible: 4, avatarIds: recipientAvatarIds)
                     Text(recipientNames.count == 1 ? "1 recipient" : "\(recipientNames.count) recipients")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundColor(Theme.Colors.textMuted)
@@ -234,16 +302,42 @@ struct ReviewPhotoGridView: View {
                     .foregroundColor(Theme.Colors.textSecondary)
             }
 
-            RollButton(title: sendButtonTitle, isLoading: false) {
-                lastSentCount = selectedCount
-                sentPhotos = selectedPhotos
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                withAnimation(.easeIn(duration: 0.22)) { uploadPhase = .developing }
-                onSend(selectedPhotos)
+            HStack(spacing: 10) {
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) {
+                        isExitingToLater = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+                        dismiss()
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("Later")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    }
+                    .foregroundColor(Theme.Colors.accent)
+                    .padding(.horizontal, 16)
+                    .frame(height: 52)
+                    .background(Theme.Colors.accentTint)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(SpringTapStyle(scaleAmount: 0.94))
+                .disabled(uploadPhase != .review || isExitingToLater)
+
+                RollButton(title: sendButtonTitle, isLoading: false) {
+                    lastSentCount = selectedCount
+                    sentPhotos = selectedPhotos
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    withAnimation(.easeIn(duration: 0.22)) { uploadPhase = .developing }
+                    onSend(selectedPhotos)
+                }
+                .disabled(selectedCount == 0)
+                .opacity(selectedCount == 0 ? 0.4 : 1)
+                .animation(.easeInOut(duration: 0.2), value: selectedCount == 0)
             }
-            .disabled(selectedCount == 0)
-            .opacity(selectedCount == 0 ? 0.4 : 1)
-            .animation(.easeInOut(duration: 0.2), value: selectedCount == 0)
         }
         .padding(Theme.Spacing.lg)
         .background(.ultraThinMaterial)
@@ -268,16 +362,17 @@ struct ReviewPhotoGridView: View {
 
 private struct FilmDevelopingOverlay: View {
     let photos: [PendingPhoto]
-    let batchId: String
     let palette: [Color]
+    /// Display progress — passed in by the parent as max(actual upload progress,
+    /// forced-to-1.0 on success) so the strip always visually completes.
+    let progress: Double
+    /// False once the success phase begins — fades/scales the title, strip and
+    /// progress bar out while the gradient backdrop stays mounted underneath
+    /// SendSuccessOverlay, so the two screens read as one continuous overlay.
+    var contentVisible: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showTimeout = false
-
-    // Reads directly from UploadManager — @Observable tracks this in body
-    private var progress: Double {
-        UploadManager.shared.progress[batchId] ?? 0
-    }
 
     private var statusCopy: String {
         if progress < 0.33 { return "Developing your shots…" }
@@ -357,6 +452,12 @@ private struct FilmDevelopingOverlay: View {
                 }
             }
             .padding(.horizontal, 24)
+            .opacity(contentVisible ? 1 : 0)
+            .scaleEffect(contentVisible ? 1 : 0.96)
+            .animation(
+                reduceMotion ? .none : .easeInOut(duration: 0.3),
+                value: contentVisible
+            )
         }
         // Timeout watcher — cancelled automatically when overlay disappears
         .task {
@@ -535,13 +636,10 @@ private struct SendSuccessOverlay: View {
 
     var body: some View {
         ZStack {
-            // Light gradient backdrop — continuous with the film-developing screen underneath
-            LinearGradient(
-                colors: [Color(hex: 0xE4F2E8), Color(hex: 0xF7FBF8), .white],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            // No backdrop of our own — FilmDevelopingOverlay stays mounted underneath
+            // and keeps showing its gradient, so the two screens read as one
+            // continuous overlay instead of two stacked, flickering gradients.
+            Color.clear.ignoresSafeArea()
 
             // Particle burst
             if !reduceMotion {
@@ -637,8 +735,12 @@ private struct PhotoGridCell: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            PhotoThumbnailCell(photo: photo, fallbackColor: fallbackColor)
-                .aspectRatio(1, contentMode: .fit)
+            GeometryReader { geo in
+                PhotoThumbnailCell(photo: photo, fallbackColor: fallbackColor)
+                    .frame(width: geo.size.width, height: geo.size.width)
+                    .clipped()
+            }
+            .aspectRatio(1, contentMode: .fit)
 
             // Dim overlay when deselected
             if !photo.isSelected {

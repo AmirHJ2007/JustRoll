@@ -107,6 +107,10 @@ struct SettingsView: View {
     @State private var profileAvatarId: Int? = nil
     @State private var showAvatarPicker = false
     @State private var appear = false
+    @State private var showSignOutConfirm = false
+    @State private var showDeleteAccountConfirm = false
+    @State private var isDeletingAccount = false
+    @State private var deleteAccountError: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -127,6 +131,8 @@ struct SettingsView: View {
                                 .cardEntrance(appear: appear, delay: 0.21, reduceMotion: reduceMotion)
                             signOutCard
                                 .cardEntrance(appear: appear, delay: 0.29, reduceMotion: reduceMotion)
+                            deleteAccountCard
+                                .cardEntrance(appear: appear, delay: 0.33, reduceMotion: reduceMotion)
                             aboutFooter
                                 .cardEntrance(appear: appear, delay: 0.37, reduceMotion: reduceMotion)
                         }
@@ -331,10 +337,7 @@ struct SettingsView: View {
         card {
             Button(role: .destructive) {
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                Task {
-                    try? await service.signOut()
-                    onSignOut()
-                }
+                showSignOutConfirm = true
             } label: {
                 HStack(spacing: 14) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
@@ -361,6 +364,86 @@ struct SettingsView: View {
             }
             .buttonStyle(SpringTapStyle(scaleAmount: 0.98))
         }
+        .alert("Sign out?", isPresented: $showSignOutConfirm) {
+            Button("Sign out", role: .destructive) {
+                Task {
+                    try? await service.signOut()
+                    onSignOut()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You'll need to sign back in to keep rolling.")
+        }
+    }
+
+    // MARK: - Delete account card
+
+    private var deleteAccountCard: some View {
+        card {
+            Button(role: .destructive) {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                showDeleteAccountConfirm = true
+            } label: {
+                HStack(spacing: 14) {
+                    if isDeletingAccount {
+                        ProgressView()
+                            .tint(Theme.Colors.danger)
+                            .frame(width: 32, height: 32)
+                    } else {
+                        Image(systemName: "person.crop.circle.badge.xmark")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(Theme.Colors.danger)
+                            .frame(width: 32, height: 32)
+                            .background(Theme.Colors.danger.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Delete account")
+                            .font(Theme.Typography.label)
+                            .foregroundColor(Theme.Colors.danger)
+                        Text("Erase your account and leave all your circles")
+                            .font(Theme.Typography.caption)
+                            .foregroundColor(Theme.Colors.danger.opacity(0.6))
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+                .frame(minHeight: 52)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(SpringTapStyle(scaleAmount: 0.98))
+            .disabled(isDeletingAccount)
+        }
+        .alert("Delete your account?", isPresented: $showDeleteAccountConfirm) {
+            Button("Delete forever", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This erases your photos still waiting to send, removes you from every circle you're in, and can't be undone.")
+        }
+        .alert("Couldn't delete account", isPresented: Binding(
+            get: { deleteAccountError != nil },
+            set: { if !$0 { deleteAccountError = nil } }
+        )) {
+            Button("OK") { deleteAccountError = nil }
+        } message: {
+            Text(deleteAccountError ?? "")
+        }
+    }
+
+    private func deleteAccount() async {
+        isDeletingAccount = true
+        do {
+            try await service.deleteAccount()
+            onSignOut()
+        } catch {
+            deleteAccountError = error.localizedDescription
+        }
+        isDeletingAccount = false
     }
 
     // MARK: - About footer

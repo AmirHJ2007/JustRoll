@@ -10,6 +10,9 @@ final class UnsentViewModel {
     var errorMessage: String?
     /// True while the review grid is open — RootTabView hides the tab bar so the send bar owns the bottom edge.
     var isReviewing = false
+    /// Set by SessionsView (via RootTabView) right after a non-empty stop-rolling, so UnsentView
+    /// can jump straight into the review grid for that session's batch.
+    var pendingReviewSessionId: String? = nil
 
     private let service: any SupabaseServiceProtocol
 
@@ -18,11 +21,13 @@ final class UnsentViewModel {
     }
 
     var totalPhotoCount: Int { pendingBatches.reduce(0) { $0 + $1.photos.count } }
+    var unsentCardCount: Int { pendingBatches.count }
 
     // Legacy — ReviewPhotoGridView takes [PendingPhoto] directly from the batch
     var pendingPhotos: [PendingPhoto] { pendingBatches.flatMap(\.photos) }
 
     func load() async {
+        guard !isLoading else { return }
         isLoading = true
         do {
             pendingBatches = try await service.fetchPendingBatches()
@@ -32,13 +37,18 @@ final class UnsentViewModel {
         isLoading = false
     }
 
-    func sendPhotos(_ photos: [PendingPhoto]) async {
-        guard let sessionId = photos.first?.sessionId else { return }
+    func requestReview(forSessionId sessionId: String) async {
+        await load()
+        pendingReviewSessionId = sessionId
+    }
+
+    func sendPhotos(_ photos: [PendingPhoto], from batch: PendingBatch) async {
+        errorMessage = nil
         isSending = true
         do {
-            try await service.uploadPhotos(photos, sessionId: sessionId)
+            try await service.uploadPhotos(photos, sessionId: batch.sessionId, rollId: batch.id)
             let sentIds = Set(photos.map(\.id))
-            if let idx = pendingBatches.firstIndex(where: { $0.id == sessionId }) {
+            if let idx = pendingBatches.firstIndex(where: { $0.id == batch.id }) {
                 pendingBatches[idx].photos.removeAll { sentIds.contains($0.id) }
                 if pendingBatches[idx].photos.isEmpty {
                     pendingBatches.remove(at: idx)
@@ -46,6 +56,8 @@ final class UnsentViewModel {
             }
         } catch {
             errorMessage = error.localizedDescription
+            // The card would otherwise stay stuck showing "Uploading" forever.
+            UploadManager.shared.cancelBatch(id: batch.id)
         }
         isSending = false
     }

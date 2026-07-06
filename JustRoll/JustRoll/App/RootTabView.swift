@@ -9,11 +9,13 @@ struct RootTabView: View {
     @State private var selectedTab = 0
     @State private var showNearby  = false
     @State private var unsentVM: UnsentViewModel
+    @State private var memoryVM: MemoryViewModel
 
     init(onSignOut: @escaping () -> Void = {}, service: any SupabaseServiceProtocol = MockSupabaseService.shared) {
         self.onSignOut = onSignOut
         self.service = service
         self._unsentVM = State(initialValue: UnsentViewModel(service: service))
+        self._memoryVM = State(initialValue: MemoryViewModel(service: service))
         UITabBar.appearance().isHidden = true
     }
 
@@ -22,9 +24,12 @@ struct RootTabView: View {
             Theme.Colors.surface.ignoresSafeArea()
 
             TabView(selection: $selectedTab) {
-                SessionsView(service: service).tag(0)
+                SessionsView(service: service, onRequestReview: { sessionId in
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { selectedTab = 1 }
+                    Task { await unsentVM.requestReview(forSessionId: sessionId) }
+                }).tag(0)
                 UnsentView(viewModel: unsentVM).tag(1)
-                MemoryView(service: service).tag(2)
+                MemoryView(viewModel: memoryVM).tag(2)
                 SettingsView(service: service, onSignOut: onSignOut).tag(3)
             }
             .toolbar(.hidden, for: .tabBar)
@@ -32,7 +37,8 @@ struct RootTabView: View {
                 if !unsentVM.isReviewing {
                     CustomTabBar(
                         selectedTab: $selectedTab,
-                        unsentBadgeCount: unsentVM.totalPhotoCount
+                        unsentBadgeCount: unsentVM.unsentCardCount,
+                        memoryBadgeCount: memoryVM.unsavedCount
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -56,6 +62,11 @@ struct RootTabView: View {
                     avatarId: user.avatarId
                 )
             }
+        }
+        .task {
+            async let unsentLoad: () = unsentVM.load()
+            async let memoryLoad: () = memoryVM.load()
+            _ = await (unsentLoad, memoryLoad)
         }
         .onChange(of: NearbySessionManager.shared.pendingJoinInvite?.sessionCode) { _, _ in
             guard let invite = NearbySessionManager.shared.pendingJoinInvite else { return }
@@ -94,6 +105,7 @@ private let tabItems: [TabItem] = [
 struct CustomTabBar: View {
     @Binding var selectedTab: Int
     var unsentBadgeCount: Int = 0
+    var memoryBadgeCount: Int = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Shared namespace that lets the accent pill glide smoothly between tab positions.
@@ -105,7 +117,7 @@ struct CustomTabBar: View {
                 TabBarButton(
                     item: tabItems[i],
                     isSelected: selectedTab == i,
-                    badgeCount: i == 1 ? unsentBadgeCount : 0,
+                    badgeCount: i == 1 ? unsentBadgeCount : (i == 2 ? memoryBadgeCount : 0),
                     namespace: pillNamespace,
                     reduceMotion: reduceMotion
                 ) {

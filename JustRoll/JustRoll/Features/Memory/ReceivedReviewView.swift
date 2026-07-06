@@ -7,9 +7,12 @@ struct ReceivedReviewView: View {
     let senderName: String
     let senderAvatarId: Int?
     let rollingWindow: (start: Date, end: Date)
-    let onSave: ([ReceivedPhoto]) -> Void
+    /// Reports the outcome: photos that actually saved to the camera roll, and
+    /// photos the user deliberately deselected. A photo that FAILED to save is
+    /// in neither list, so its delivery stays pending and it comes back later.
+    let onSave: (_ saved: [ReceivedPhoto], _ dismissed: [ReceivedPhoto]) -> Void
 
-    init(batch: ReceivedBatch, onSave: @escaping ([ReceivedPhoto]) -> Void) {
+    init(batch: ReceivedBatch, onSave: @escaping (_ saved: [ReceivedPhoto], _ dismissed: [ReceivedPhoto]) -> Void) {
         self._photos = State(initialValue: batch.photos)
         self.batchName = batch.sessionName
         self.senderName = batch.senderName
@@ -32,9 +35,17 @@ struct ReceivedReviewView: View {
     // MARK: Phase
     private enum SavePhase: Equatable { case review, saving, success }
     @State private var savePhase: SavePhase = .review
+    /// Photos that have actually finished saving, in completion order — grows in
+    /// lockstep with `savedCount` so `SavingToRollOverlay`'s flying-shot animation
+    /// always shows the photo that just landed, even if an earlier one failed.
     @State private var savingPhotos: [ReceivedPhoto] = []
+    /// Fixed at the start of a save pass — the total being attempted, for the
+    /// "X of TOTAL saved" readout (independent of how `savingPhotos` grows).
+    @State private var savingTotal = 0
     @State private var savedCount = 0
     @State private var lastSavedCount = 0
+    @State private var showPermissionDeniedAlert = false
+    @State private var showSaveFailedAlert = false
 
     // MARK: Grid entrance
     @State private var gridVisible = false
@@ -57,11 +68,12 @@ struct ReceivedReviewView: View {
                 if savePhase != .review {
                     SavingToRollOverlay(
                         photos: savingPhotos,
+                        totalCount: savingTotal,
                         savedCount: savedCount,
                         palette: palette
                     )
                     .ignoresSafeArea()
-                    .transition(.opacity)
+                    .transition(.opacity.combined(with: .scale(scale: 1.04)))
                     .zIndex(5)
                 }
 
@@ -69,7 +81,7 @@ struct ReceivedReviewView: View {
                 if savePhase == .success {
                     SaveSuccessOverlay(count: lastSavedCount)
                         .ignoresSafeArea()
-                        .transition(.opacity)
+                        .transition(.opacity.combined(with: .scale(scale: 1.04)))
                         .zIndex(10)
                 }
             }
@@ -92,6 +104,9 @@ struct ReceivedReviewView: View {
                     .disabled(photos.isEmpty || savePhase != .review)
                 }
             }
+            // Hide the whole nav bar (title + Select/Deselect button) while the
+            // saving/success overlay is up — mirrors ReviewPhotoGridView's Sending fix.
+            .toolbar(savePhase == .review ? .visible : .hidden, for: .navigationBar)
             .onAppear {
                 guard !gridVisible else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -101,6 +116,21 @@ struct ReceivedReviewView: View {
                 }
             }
             .interactiveDismissDisabled(savePhase != .review)
+            .alert("Allow photo access", isPresented: $showPermissionDeniedAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            } message: {
+                Text("JustRoll needs permission to add photos to your camera roll before it can save these shots. You can allow this in Settings.")
+            }
+            .alert("Couldn't save your shots", isPresented: $showSaveFailedAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Check your connection and try again.")
+            }
         }
     }
 
@@ -215,11 +245,21 @@ struct ReceivedReviewView: View {
                     .foregroundColor(Theme.Colors.textSecondary)
             }
 
-            RollButton(title: saveButtonTitle, isLoading: false) {
-                startSaving()
+            Group {
+                if selectedCount == 0 {
+                    // Nothing selected — offer a way out instead of a dead-end
+                    // disabled button, so a batch isn't stuck with a "NEW" badge forever.
+                    DangerButton(title: "Dismiss all") {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        onSave([], photos)
+                    }
+                } else {
+                    RollButton(title: saveButtonTitle, isLoading: false) {
+                        startSaving()
+                    }
+                }
             }
-            .disabled(selectedCount == 0 || savePhase != .review)
-            .opacity(selectedCount == 0 ? 0.4 : 1)
+            .disabled(savePhase != .review)
             .animation(.easeInOut(duration: 0.2), value: selectedCount == 0)
         }
         .padding(Theme.Spacing.lg)
@@ -238,25 +278,59 @@ struct ReceivedReviewView: View {
 
     // MARK: - Save flow (download + PHPhotoLibrary, with real progress)
 
+    private enum SaveError: Error { case missingURL, invalidImageData }
+
     private func startSaving() {
         let toSave = selectedPhotos
+        let toDismiss = photos.filter { !$0.isSelected }
         guard !toSave.isEmpty else { return }
-        savingPhotos = toSave
-        savedCount = 0
-        lastSavedCount = toSave.count
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        withAnimation(.easeIn(duration: 0.22)) { savePhase = .saving }
 
         Task {
+            // Add-only access is enough to save into the camera roll and doesn't
+            // require the broader full-library permission the app already asks
+            // for elsewhere.
+            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard status == .authorized || status == .limited else {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                withAnimation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.82)) {
+                    savePhase = .review
+                }
+                showPermissionDeniedAlert = true
+                return
+            }
+
+            savingPhotos = []
+            savingTotal = toSave.count
+            savedCount = 0
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            withAnimation(.easeIn(duration: 0.22)) { savePhase = .saving }
+
+            var succeededPhotos: [ReceivedPhoto] = []
+
             for photo in toSave {
-                // Download full-res + save to camera roll.
-                // Failures (or nil URLs in mock) just skip — still counted as processed.
-                if let url = photo.fullResUrl,
-                   let (data, _) = try? await URLSession.shared.data(from: url),
-                   let image = UIImage(data: data) {
-                    try? await PHPhotoLibrary.shared().performChanges {
-                        PHAssetChangeRequest.creationRequestForAsset(from: image)
+                var didSucceed = false
+                do {
+                    guard let url = photo.fullResUrl else { throw SaveError.missingURL }
+                    if photo.isVideo {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        let tempURL = FileManager.default.temporaryDirectory
+                            .appendingPathComponent(UUID().uuidString)
+                            .appendingPathExtension("mp4")
+                        defer { try? FileManager.default.removeItem(at: tempURL) }
+                        try data.write(to: tempURL)
+                        try await PHPhotoLibrary.shared().performChanges {
+                            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: tempURL)
+                        }
+                    } else {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        guard let image = UIImage(data: data) else { throw SaveError.invalidImageData }
+                        try await PHPhotoLibrary.shared().performChanges {
+                            PHAssetChangeRequest.creationRequestForAsset(from: image)
+                        }
                     }
+                    didSucceed = true
+                } catch {
+                    didSucceed = false
                 }
 
                 // Pacing floor so each flight reads, even when a photo completes
@@ -265,11 +339,26 @@ struct ReceivedReviewView: View {
                     try? await Task.sleep(nanoseconds: 300_000_000)
                 }
 
-                withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.72)) {
-                    savedCount += 1
+                if didSucceed {
+                    succeededPhotos.append(photo)
+                    withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.72)) {
+                        savingPhotos.append(photo)
+                        savedCount += 1
+                    }
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 }
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             }
+
+            guard !succeededPhotos.isEmpty else {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                withAnimation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.82)) {
+                    savePhase = .review
+                }
+                showSaveFailedAlert = true
+                return
+            }
+
+            lastSavedCount = succeededPhotos.count
 
             // Let the last shot finish its flight before celebrating
             if !reduceMotion {
@@ -279,9 +368,11 @@ struct ReceivedReviewView: View {
             withAnimation(.easeIn(duration: 0.25)) { savePhase = .success }
 
             // Hold on the success overlay, then hand off to the parent
-            // (markBatchSaved + local isSaved state + sheet dismissal).
+            // (markBatchSaved + local isSaved state + sheet dismissal). A photo
+            // that failed to save is reported as neither saved nor dismissed, so
+            // its delivery stays pending server-side and it resurfaces later.
             try? await Task.sleep(nanoseconds: 1_800_000_000)
-            onSave(toSave)
+            onSave(succeededPhotos, toDismiss)
         }
     }
 }
@@ -299,35 +390,15 @@ private struct ReceivedPhotoGridCell: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            // Thumbnail — real URL or colour placeholder
-            Group {
-                if let url = photo.thumbnailUrl {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        case .failure:
-                            Rectangle().fill(fallbackColor)
-                                .overlay(Image(systemName: "photo").foregroundColor(.white.opacity(0.5)))
-                        case .empty:
-                            Rectangle().fill(fallbackColor)
-                                .overlay(ProgressView().tint(.white))
-                        @unknown default:
-                            Rectangle().fill(fallbackColor)
-                        }
-                    }
-                } else {
-                    Rectangle()
-                        .fill(fallbackColor)
-                        .overlay(
-                            Image(systemName: "photo.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white.opacity(0.45))
-                        )
-                }
+            // Thumbnail — pinned to a square frame (geo.size.width × geo.size.width) so
+            // landscape photos fill and clip like the Unsent review grid, instead of
+            // letting AsyncImage's native aspect ratio distort the grid cell.
+            GeometryReader { geo in
+                ReceivedPhotoThumbnailCell(photo: photo, fallbackColor: fallbackColor)
+                    .frame(width: geo.size.width, height: geo.size.width)
+                    .clipped()
             }
             .aspectRatio(1, contentMode: .fit)
-            .clipped()
 
             // Dim overlay when deselected
             if !photo.isSelected {
@@ -379,13 +450,68 @@ private struct ReceivedPhotoGridCell: View {
     }
 }
 
+// MARK: - ReceivedPhotoThumbnailCell
+// Mirrors PhotoThumbnailCell (Unsent's ReviewPhotoGridView) — real remote thumbnail
+// via AsyncImage, or the mockColorSeed fallback tile when there's no URL.
+
+private struct ReceivedPhotoThumbnailCell: View {
+    let photo: ReceivedPhoto
+    let fallbackColor: Color
+
+    var body: some View {
+        ZStack {
+            Group {
+                if let url = photo.thumbnailUrl {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().scaledToFill()
+                        case .failure:
+                            Rectangle().fill(fallbackColor)
+                                .overlay(Image(systemName: photo.isVideo ? "video.fill" : "photo").foregroundColor(.white.opacity(0.5)))
+                        case .empty:
+                            Rectangle().fill(fallbackColor)
+                                .overlay(ProgressView().tint(.white))
+                        @unknown default:
+                            Rectangle().fill(fallbackColor)
+                        }
+                    }
+                } else {
+                    Rectangle()
+                        .fill(fallbackColor)
+                        .overlay(
+                            Image(systemName: photo.isVideo ? "video.fill" : "photo.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(.white.opacity(0.45))
+                        )
+                }
+            }
+            .clipped()
+
+            // Video indicator — mirrors the Unsent review grid's PhotoThumbnailCell badge.
+            if photo.isVideo {
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 4, x: 0, y: 2)
+            }
+        }
+        .clipped()
+    }
+}
+
 // MARK: - SavingToRollOverlay
 // Full-screen takeover while photos download + save to the camera roll.
 // Small thumbnails fly one by one into a camera-roll tray as each photo
 // finishes; progress is real (savedCount / total).
 
 private struct SavingToRollOverlay: View {
+    /// Photos that have actually finished saving, in completion order — grows in
+    /// lockstep with `savedCount`, so `photos[savedCount - 1]` is always the shot
+    /// that just landed (even if an earlier photo in the batch failed and was skipped).
     let photos: [ReceivedPhoto]
+    /// Fixed total being attempted this pass, for the "of TOTAL saved" readout.
+    let totalCount: Int
     let savedCount: Int
     let palette: [Color]
 
@@ -394,13 +520,13 @@ private struct SavingToRollOverlay: View {
     @State private var traySquash = false
 
     private struct FlyingShot: Identifiable, Equatable {
-        let id: Int          // photo index — one flight per landed photo
+        let id: Int          // index into `photos` — one flight per landed photo
         let startX: CGFloat
         let startRotation: Double
         let endRotation: Double
     }
 
-    private var total: Int { max(photos.count, 1) }
+    private var total: Int { max(totalCount, 1) }
     private var progress: Double { Double(savedCount) / Double(total) }
 
     private var statusCopy: String {
@@ -468,7 +594,7 @@ private struct SavingToRollOverlay: View {
                             .foregroundColor(Theme.Colors.accent)
                             .contentTransition(.numericText())
                             .animation(.spring(response: 0.3, dampingFraction: 0.72), value: savedCount)
-                        Text("of \(photos.count) saved")
+                        Text("of \(totalCount) saved")
                             .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundColor(Theme.Colors.textSecondary)
                     }
@@ -739,5 +865,5 @@ private struct SaveCheckmarkShape: Shape {
                 ReceivedPhoto(id: "p\($0)", batchId: "preview", url: nil, captureDate: Date())
             }
         )
-    ) { _ in }
+    ) { _, _ in }
 }

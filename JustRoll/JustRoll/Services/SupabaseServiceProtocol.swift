@@ -12,6 +12,10 @@ protocol SupabaseServiceProtocol: AnyObject {
     func isUsernameTaken(_ username: String) async throws -> Bool
     /// Change the signed-in user's preset avatar (1–12), or nil to clear it.
     func updateAvatar(_ avatarId: Int?) async throws
+    /// Permanently erases the signed-in user's account and all associated data
+    /// (photos, deliveries, contacts, profile), and removes them from every
+    /// circle they belong to. Cannot be undone.
+    func deleteAccount() async throws
 
     // MARK: Sessions
     func fetchSessions() async throws -> [Session]
@@ -39,7 +43,7 @@ protocol SupabaseServiceProtocol: AnyObject {
     // MARK: Photos
     func fetchPendingPhotos() async throws -> [PendingPhoto]
     func fetchPendingBatches() async throws -> [PendingBatch]
-    func uploadPhotos(_ photos: [PendingPhoto], sessionId: String) async throws
+    func uploadPhotos(_ photos: [PendingPhoto], sessionId: String, rollId: String) async throws
     func fetchReceivedBatches() async throws -> [ReceivedBatch]
     func markBatchSaved(batchId: String, savedPhotoIds: [String], dismissedPhotoIds: [String]) async throws
 }

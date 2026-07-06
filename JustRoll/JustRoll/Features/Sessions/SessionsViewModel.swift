@@ -45,6 +45,7 @@ final class SessionsViewModel {
     var endedSessions: [Session] { sessions.filter { $0.status == .ended && $0.kind == .disposable } }
 
     func load() async {
+        guard !isLoading else { return }
         isLoading = true
         do {
             sessions = try await service.fetchSessions()
@@ -58,6 +59,8 @@ final class SessionsViewModel {
         for username in usernames {
             try? await service.inviteMemberToSession(sessionId: sessionId, username: username)
         }
+        // Refresh so the local member count/list reflects the new invites immediately.
+        await load()
     }
 
     func createSession(name: String, kind: SessionKind, invitedContacts: [Contact] = []) async throws -> Session {
@@ -112,22 +115,37 @@ final class SessionsViewModel {
             let now = Date()
             syncStatus(sessionId: session.id, to: .active)
             syncMemberRolling(sessionId: session.id, isRolling: true)
-            syncRollingWindow(sessionId: session.id, startedAt: now, stoppedAt: nil)
+            // Starting again clears any stale rollingStoppedAt from a previous window,
+            // mirroring what the server does.
+            syncRollingWindow(sessionId: session.id, startedAt: now, stoppedAt: nil, clearStoppedAt: true)
             await requestPhotoLibraryAccessIfNeeded()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    func stopRolling(_ session: Session) async {
+    /// Stops rolling for the current user. Returns `true` on success so callers can
+    /// revert their optimistic UI state when the server call fails.
+    @discardableResult
+    func stopRolling(_ session: Session) async -> Bool {
         do {
             try await service.stopRolling(sessionId: session.id)
             let now = Date()
-            syncStatus(sessionId: session.id, to: .pending)
             syncMemberRolling(sessionId: session.id, isRolling: false)
             syncRollingWindow(sessionId: session.id, startedAt: nil, stoppedAt: now)
+
+            // The server only reverts the session to .pending when NO member is still
+            // rolling — mirror that instead of unconditionally forcing .pending, so we
+            // don't stop another member's "Rolling" badge/timer out from under them.
+            let otherStillRolling = sessions.first(where: { $0.id == session.id })?
+                .members.contains { $0.id != currentUserId && $0.isRolling } ?? false
+            if !otherStillRolling {
+                syncStatus(sessionId: session.id, to: .pending)
+            }
+            return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
         }
     }
 
@@ -190,11 +208,14 @@ final class SessionsViewModel {
         sessions[sid].members[mid].isRolling = isRolling
     }
 
-    private func syncRollingWindow(sessionId: String, startedAt: Date?, stoppedAt: Date?) {
+    private func syncRollingWindow(
+        sessionId: String, startedAt: Date?, stoppedAt: Date?, clearStoppedAt: Bool = false
+    ) {
         guard let sid = sessions.firstIndex(where: { $0.id == sessionId }),
               let uid = currentUserId,
               let mid = sessions[sid].members.firstIndex(where: { $0.id == uid }) else { return }
         if let start = startedAt { sessions[sid].members[mid].rollingStartedAt = start }
         if let stop = stoppedAt  { sessions[sid].members[mid].rollingStoppedAt = stop }
+        if clearStoppedAt { sessions[sid].members[mid].rollingStoppedAt = nil }
     }
 }

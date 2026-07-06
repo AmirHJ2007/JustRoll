@@ -179,6 +179,7 @@ private struct PhotoInsertV2: Encodable {
     let storagePath: String
     let thumbnailPath: String
     let captureDate: String
+    let isVideo: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -187,6 +188,7 @@ private struct PhotoInsertV2: Encodable {
         case storagePath   = "storage_path"
         case thumbnailPath = "thumbnail_path"
         case captureDate   = "capture_date"
+        case isVideo       = "is_video"
     }
 }
 
@@ -218,11 +220,23 @@ private struct DeliveryWithPhotoRow: Decodable {
         let storagePath: String
         let thumbnailPath: String?
         let captureDate: Date
+        let isVideo: Bool
 
         enum CodingKeys: String, CodingKey {
             case storagePath   = "storage_path"
             case thumbnailPath = "thumbnail_path"
             case captureDate   = "capture_date"
+            case isVideo       = "is_video"
+        }
+
+        // Defensive: tolerate the `is_video` column being absent from the response
+        // (e.g. before the DB migration lands) rather than failing the whole decode.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            storagePath   = try container.decode(String.self, forKey: .storagePath)
+            thumbnailPath = try container.decodeIfPresent(String.self, forKey: .thumbnailPath)
+            captureDate   = try container.decode(Date.self, forKey: .captureDate)
+            isVideo       = (try? container.decodeIfPresent(Bool.self, forKey: .isVideo)).flatMap { $0 } ?? false
         }
     }
 
@@ -310,16 +324,9 @@ final class SupabaseService: SupabaseServiceProtocol {
         return user
     }
 
-    // Tries RPC first (bypasses RLS), falls back to direct insert.
+    // Direct upsert into profiles (create_user_profile RPC doesn't exist server-side, so
+    // there's no RLS-bypassing path to try first — just insert directly).
     private func insertProfile(id: String, name: String, username: String, email: String, avatarId: Int? = nil) async {
-        struct CreateProfileParams: Encodable {
-            let userId: String; let userName: String
-            let userUsername: String; let userEmail: String
-            enum CodingKeys: String, CodingKey {
-                case userId = "user_id"; case userName = "user_name"
-                case userUsername = "user_username"; case userEmail = "user_email"
-            }
-        }
         struct ProfileInsert: Encodable {
             let id: String; let name: String; let username: String; let email: String
             let avatarId: Int?
@@ -327,29 +334,6 @@ final class SupabaseService: SupabaseServiceProtocol {
                 case id, name, username, email
                 case avatarId = "avatar_id"
             }
-        }
-
-        do {
-            try await client
-                .rpc("create_user_profile", params: CreateProfileParams(
-                    userId: id, userName: name, userUsername: username, userEmail: email))
-                .execute()
-            print("[SupabaseService] insertProfile via RPC — OK")
-            // The RPC doesn't carry avatar_id — set it separately.
-            if let avatarId {
-                struct AvatarPatch: Encodable {
-                    let avatarId: Int
-                    enum CodingKeys: String, CodingKey { case avatarId = "avatar_id" }
-                }
-                try? await client
-                    .from("profiles")
-                    .update(AvatarPatch(avatarId: avatarId))
-                    .eq("id", value: id)
-                    .execute()
-            }
-            return
-        } catch {
-            print("[SupabaseService] insertProfile RPC failed: \(error)")
         }
 
         do {
@@ -365,6 +349,20 @@ final class SupabaseService: SupabaseServiceProtocol {
 
     func signOut() async throws {
         try await client.auth.signOut()
+        currentUser = nil
+    }
+
+    func deleteAccount() async throws {
+        // Server-side RPC does the actual work: erases photos/deliveries/contacts,
+        // removes the user from every session_members row (every circle), then
+        // deletes the profile and the auth user. See supabase/delete_account.sql.
+        try await client.rpc("delete_account").execute()
+
+        // The auth user no longer exists server-side at this point, so signOut()
+        // is just clearing the local session — best-effort, mirroring how
+        // signOut() itself is treated as fire-and-forget elsewhere (e.g. after
+        // sign-out confirm in SettingsView).
+        try? await client.auth.signOut()
         currentUser = nil
     }
 
@@ -451,7 +449,9 @@ final class SupabaseService: SupabaseServiceProtocol {
                     avatarId: profile.avatarId,
                     joinedAt: m.joinedAt,
                     leftAt: m.leftAt,
-                    isRolling: m.isRolling
+                    isRolling: m.isRolling,
+                    rollingStartedAt: m.rollingStartedAt,
+                    rollingStoppedAt: m.rollingStoppedAt
                 )
             }
 
@@ -554,11 +554,7 @@ final class SupabaseService: SupabaseServiceProtocol {
             .value
 
         if remaining.isEmpty {
-            try await client
-                .from("sessions")
-                .delete()
-                .eq("id", value: sessionId)
-                .execute()
+            try await deleteSessionCascade(sessionId: sessionId)
         }
     }
 
@@ -580,6 +576,49 @@ final class SupabaseService: SupabaseServiceProtocol {
     }
 
     func deleteSession(sessionId: String) async throws {
+        try await deleteSessionCascade(sessionId: sessionId)
+    }
+
+    // Deletes a session and everything that FK-blocks its removal.
+    // photos.session_id has no ON DELETE action (defaults to RESTRICT), so any photos
+    // rows left over for the session would make `DELETE FROM sessions` fail. Clean those
+    // up (and their Storage objects) first. photo_deliveries.photo_id IS ON DELETE CASCADE
+    // (see schema.sql), so deleting the photos rows cascades the deliveries automatically —
+    // no need to delete photo_deliveries explicitly.
+    private func deleteSessionCascade(sessionId: String) async throws {
+        struct SessionPhotoRow: Decodable {
+            let id: UUID
+            let storagePath: String
+            let thumbnailPath: String?
+            enum CodingKeys: String, CodingKey {
+                case id
+                case storagePath   = "storage_path"
+                case thumbnailPath = "thumbnail_path"
+            }
+        }
+
+        let photoRows: [SessionPhotoRow] = (try? await client
+            .from("photos")
+            .select("id, storage_path, thumbnail_path")
+            .eq("session_id", value: sessionId)
+            .execute()
+            .value) ?? []
+
+        if !photoRows.isEmpty {
+            var paths: [String] = []
+            for row in photoRows {
+                paths.append(row.storagePath)
+                if let t = row.thumbnailPath { paths.append(t) }
+            }
+            try? await client.storage.from("photos").remove(paths: paths)
+
+            try await client
+                .from("photos")
+                .delete()
+                .eq("session_id", value: sessionId)
+                .execute()
+        }
+
         try await client
             .from("sessions")
             .delete()
@@ -639,6 +678,18 @@ final class SupabaseService: SupabaseServiceProtocol {
     func stopRolling(sessionId: String) async throws {
         let uid = try currentUserId()
         let now = Date()
+
+        // Read this user's current window before it's overwritten by the update below,
+        // so the completed roll can be persisted locally with its real start time.
+        let myRows: [SessionMemberRow] = try await client
+            .from("session_members")
+            .select()
+            .eq("session_id", value: sessionId)
+            .eq("user_id", value: uid)
+            .execute()
+            .value
+        let startedAt = myRows.first?.rollingStartedAt
+
         struct StopRollingPayload: Encodable {
             let isRolling: Bool = false
             let rollingStoppedAt: Date
@@ -653,6 +704,10 @@ final class SupabaseService: SupabaseServiceProtocol {
             .eq("session_id", value: sessionId)
             .eq("user_id", value: uid)
             .execute()
+
+        if let startedAt {
+            RollStore.add(CompletedRoll(sessionId: sessionId, startedAt: startedAt, stoppedAt: now))
+        }
 
         // If no members are still rolling, set session back to pending
         let rollingMembers: [SessionMemberRow] = try await client
@@ -814,7 +869,11 @@ final class SupabaseService: SupabaseServiceProtocol {
     func fetchPendingBatches() async throws -> [PendingBatch] {
         let uid = try currentUserId()
 
-        // Query rolling windows for this user that haven't been sent yet
+        // Ingest any windows the server still remembers into the local roll store.
+        // This preserves any window that predates this feature (or was written by
+        // another device); RollStore.add is a no-op if the id is already known.
+        // Done BEFORE the PhotoKit auth guard so nothing is lost when permission
+        // is missing — the ingest itself doesn't need PhotoKit access.
         let memberRows: [SessionMemberRow] = try await client
             .from("session_members")
             .select()
@@ -823,21 +882,27 @@ final class SupabaseService: SupabaseServiceProtocol {
             .execute()
             .value
 
-        let unsent = memberRows.filter { $0.rollingStoppedAt != nil && $0.rollingStartedAt != nil }
-        guard !unsent.isEmpty else { return [] }
+        for row in memberRows {
+            guard let start = row.rollingStartedAt, let stop = row.rollingStoppedAt else { continue }
+            RollStore.add(CompletedRoll(sessionId: row.sessionId.uuidString, startedAt: start, stoppedAt: stop))
+        }
+
+        let rolls = RollStore.all()
+        guard !rolls.isEmpty else { return [] }
 
         // Require at least limited PhotoKit access to scan the camera roll
         let authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard authStatus == .authorized || authStatus == .limited else { return [] }
 
-        // Fetch session details
-        let sessionIds = unsent.map { $0.sessionId.uuidString }
+        // Fetch session details for the distinct sessions represented in the store
+        let sessionIds = Array(Set(rolls.map { $0.sessionId }))
         let sessionRows: [SessionRow] = try await client
             .from("sessions")
             .select()
             .in("id", values: sessionIds)
             .execute()
             .value
+        let sessionMap = Dictionary(uniqueKeysWithValues: sessionRows.map { ($0.id.uuidString, $0) })
 
         // Fetch all members of those sessions to compute recipients
         let allMemberRows: [SessionMemberRow] = try await client
@@ -849,16 +914,20 @@ final class SupabaseService: SupabaseServiceProtocol {
 
         var batches: [PendingBatch] = []
 
-        for row in unsent {
-            guard let start = row.rollingStartedAt, let stop = row.rollingStoppedAt else { continue }
-            guard let sessionRow = sessionRows.first(where: { $0.id == row.sessionId }) else { continue }
+        for roll in rolls {
+            guard let sessionRow = sessionMap[roll.sessionId] else {
+                // Circle no longer exists (e.g. deleted) — drop the orphaned roll
+                RollStore.remove(id: roll.id)
+                continue
+            }
 
             // Recipient names = other members in the session
             let otherIds = allMemberRows
-                .filter { $0.sessionId == row.sessionId && $0.userId.uuidString != uid }
+                .filter { $0.sessionId.uuidString == roll.sessionId && $0.userId.uuidString != uid }
                 .map { $0.userId.uuidString }
 
             var recipientNames: [String] = []
+            var recipientAvatarIds: [Int?] = []
             if !otherIds.isEmpty {
                 let profiles: [ProfileRow] = try await client
                     .from("profiles")
@@ -867,14 +936,15 @@ final class SupabaseService: SupabaseServiceProtocol {
                     .execute()
                     .value
                 recipientNames = profiles.map(\.name)
+                recipientAvatarIds = profiles.map(\.avatarId)
             }
 
             // Fetch images and videos in the rolling window.
             // Screenshot check is done in Swift (not NSPredicate) so iOS's own
             // mediaSubtype.contains() logic is used — avoids SQLite bitwise edge cases
             // that can silently drop certain image subtypes (e.g. photos shot during video recording).
-            let windowStart = start as NSDate
-            let windowEnd   = stop  as NSDate
+            let windowStart = roll.startedAt as NSDate
+            let windowEnd   = roll.stoppedAt  as NSDate
 
             let timePredicate = NSPredicate(
                 format: "creationDate >= %@ AND creationDate <= %@",
@@ -909,27 +979,41 @@ final class SupabaseService: SupabaseServiceProtocol {
             for i in 0..<videoResult.count {
                 rawAssets.append((videoResult.object(at: i), true))
             }
-            rawAssets.sort { ($0.asset.creationDate ?? start) < ($1.asset.creationDate ?? start) }
+            rawAssets.sort { ($0.asset.creationDate ?? roll.startedAt) < ($1.asset.creationDate ?? roll.startedAt) }
 
-            // Empty roll — nothing to review or send. Mark the window as sent so it
-            // never surfaces as a blank card in the Unsent tab (or gets rescanned).
+            // Empty roll — nothing to review or send. Drop it from the local store so it
+            // never surfaces as a blank card (or gets rescanned).
             if rawAssets.isEmpty {
-                try? await client
+                RollStore.remove(id: roll.id)
+
+                // Only clear the server's batch_sent flag for this window if the server
+                // still points at this exact start time — never hide a newer window that
+                // hasn't been ingested into the store yet.
+                let currentRows: [SessionMemberRow] = (try? await client
                     .from("session_members")
-                    .update(["batch_sent": true])
-                    .eq("session_id", value: row.sessionId.uuidString)
+                    .select()
+                    .eq("session_id", value: roll.sessionId)
                     .eq("user_id", value: uid)
                     .execute()
+                    .value) ?? []
+                if currentRows.first?.rollingStartedAt == roll.startedAt {
+                    try? await client
+                        .from("session_members")
+                        .update(["batch_sent": true])
+                        .eq("session_id", value: roll.sessionId)
+                        .eq("user_id", value: uid)
+                        .execute()
+                }
                 continue
             }
 
             let sessionLabel = sessionRow.name.isEmpty ? "Roll \(sessionRow.code)" : sessionRow.name
-            var photos: [PendingPhoto] = rawAssets.map { entry in
+            let photos: [PendingPhoto] = rawAssets.map { entry in
                 PendingPhoto(
                     id: entry.asset.localIdentifier,
-                    sessionId: row.sessionId.uuidString,
+                    sessionId: roll.sessionId,
                     sessionName: sessionLabel,
-                    captureDate: entry.asset.creationDate ?? start,
+                    captureDate: entry.asset.creationDate ?? roll.startedAt,
                     isSelected: true,
                     isVideo: entry.isVideo,
                     asset: entry.asset
@@ -937,19 +1021,21 @@ final class SupabaseService: SupabaseServiceProtocol {
             }
 
             batches.append(PendingBatch(
-                id: row.sessionId.uuidString,
+                id: roll.id,
+                sessionId: roll.sessionId,
                 sessionName: sessionLabel,
                 photos: photos,
-                rollingStartedAt: start,
-                rollingStoppedAt: stop,
-                recipientNames: recipientNames
+                rollingStartedAt: roll.startedAt,
+                rollingStoppedAt: roll.stoppedAt,
+                recipientNames: recipientNames,
+                recipientAvatarIds: recipientAvatarIds
             ))
         }
 
         return batches
     }
 
-    func uploadPhotos(_ photos: [PendingPhoto], sessionId: String) async throws {
+    func uploadPhotos(_ photos: [PendingPhoto], sessionId: String, rollId: String) async throws {
         let uid = try currentUserId()
 
         let isoFmt = ISO8601DateFormatter()
@@ -966,69 +1052,97 @@ final class SupabaseService: SupabaseServiceProtocol {
             .filter { $0.userId.uuidString != uid }
             .map { $0.userId.uuidString }
 
-        await MainActor.run { UploadManager.shared.startBatch(id: sessionId, total: photos.count) }
+        await MainActor.run { UploadManager.shared.startBatch(id: rollId, total: photos.count) }
 
-        for (index, photo) in photos.enumerated() {
-            defer {
-                Task { await MainActor.run {
-                    UploadManager.shared.advancePhoto(batchId: sessionId, index: index, total: photos.count)
-                }}
-            }
-
-            guard let asset = photo.asset else { continue }
-
-            let photoId   = UUID().uuidString
-            let fullPath  = "\(sessionId)/\(uid)/\(photoId)_full.jpg"
-            let thumbPath = "\(sessionId)/\(uid)/\(photoId)_thumb.jpg"
-
-            // Export concurrently
-            async let fullData  = PhotoExporter.exportFullRes(asset)
-            async let thumbData = PhotoExporter.exportThumbnail(asset)
-            let (full, thumb)   = await (fullData, thumbData)
-            guard let fullBytes = full else { continue }
-            let thumbBytes = thumb ?? fullBytes
-
-            // Upload both to Supabase Storage
-            try await client.storage.from("photos")
-                .upload(path: fullPath, file: fullBytes,
-                        options: FileOptions(contentType: "image/jpeg", upsert: true))
-            try await client.storage.from("photos")
-                .upload(path: thumbPath, file: thumbBytes,
-                        options: FileOptions(contentType: "image/jpeg", upsert: true))
-
-            // Insert photo row
-            try await client.from("photos")
-                .insert(PhotoInsertV2(
-                    id: photoId,
-                    sessionId: sessionId,
-                    uploaderId: uid,
-                    storagePath: fullPath,
-                    thumbnailPath: thumbPath,
-                    captureDate: isoFmt.string(from: photo.captureDate)
-                ))
-                .execute()
-
-            // Insert delivery row for each recipient
-            if !recipientIds.isEmpty {
-                let deliveries = recipientIds.map { rid in
-                    DeliveryInsertV2(photoId: photoId, recipientId: rid,
-                                     senderId: uid, sessionId: sessionId)
+        do {
+            for (index, photo) in photos.enumerated() {
+                defer {
+                    Task { await MainActor.run {
+                        UploadManager.shared.advancePhoto(batchId: rollId, index: index, total: photos.count)
+                    }}
                 }
-                try await client.from("photo_deliveries")
-                    .insert(deliveries)
+
+                guard let asset = photo.asset else { continue }
+
+                let photoId   = UUID().uuidString
+                let fullExt   = photo.isVideo ? "mp4" : "jpg"
+                let fullPath  = "\(sessionId)/\(uid)/\(photoId)_full.\(fullExt)"
+                let thumbPath = "\(sessionId)/\(uid)/\(photoId)_thumb.jpg"
+
+                // Export concurrently — video assets export their full-res as an MP4;
+                // the poster-frame thumbnail export is identical for photos and videos.
+                let isVideo = photo.isVideo
+                async let fullData: Data? = { () async -> Data? in
+                    isVideo ? await PhotoExporter.exportVideo(asset) : await PhotoExporter.exportFullRes(asset)
+                }()
+                async let thumbData = PhotoExporter.exportThumbnail(asset)
+                let (full, thumb)   = await (fullData, thumbData)
+                guard let fullBytes = full else { continue }
+                let thumbBytes = thumb ?? fullBytes
+
+                // Upload both to Supabase Storage
+                try await client.storage.from("photos")
+                    .upload(path: fullPath, file: fullBytes,
+                            options: FileOptions(contentType: photo.isVideo ? "video/mp4" : "image/jpeg", upsert: true))
+                try await client.storage.from("photos")
+                    .upload(path: thumbPath, file: thumbBytes,
+                            options: FileOptions(contentType: "image/jpeg", upsert: true))
+
+                // Insert photo row
+                try await client.from("photos")
+                    .insert(PhotoInsertV2(
+                        id: photoId,
+                        sessionId: sessionId,
+                        uploaderId: uid,
+                        storagePath: fullPath,
+                        thumbnailPath: thumbPath,
+                        captureDate: isoFmt.string(from: photo.captureDate),
+                        isVideo: photo.isVideo
+                    ))
                     .execute()
+
+                // Insert delivery row for each recipient
+                if !recipientIds.isEmpty {
+                    let deliveries = recipientIds.map { rid in
+                        DeliveryInsertV2(photoId: photoId, recipientId: rid,
+                                         senderId: uid, sessionId: sessionId)
+                    }
+                    try await client.from("photo_deliveries")
+                        .insert(deliveries)
+                        .execute()
+                }
             }
+
+            // Mark batch as sent — disappears from Unsent tab. But only if the server's
+            // row still describes THIS roll: with per-roll local cards, the server's
+            // session_members row may already have moved on to describe a newer roll
+            // (a fresh startRolling happened before this upload finished). Mirrors the
+            // guard in fetchPendingBatches.
+            if let startedAt = RollStore.all().first(where: { $0.id == rollId })?.startedAt {
+                let currentRows: [SessionMemberRow] = try await client
+                    .from("session_members")
+                    .select()
+                    .eq("session_id", value: sessionId)
+                    .eq("user_id", value: uid)
+                    .execute()
+                    .value
+                if currentRows.first?.rollingStartedAt == startedAt {
+                    try await client
+                        .from("session_members")
+                        .update(["batch_sent": true])
+                        .eq("session_id", value: sessionId)
+                        .eq("user_id", value: uid)
+                        .execute()
+                }
+            }
+
+            RollStore.remove(id: rollId)
+
+            await MainActor.run { UploadManager.shared.finishBatch(id: rollId) }
+        } catch {
+            await MainActor.run { UploadManager.shared.cancelBatch(id: rollId) }
+            throw error
         }
-
-        // Mark batch as sent — disappears from Unsent tab
-        try await client
-            .from("session_members")
-            .update(["batch_sent": true])
-            .eq("session_id", value: sessionId)
-            .eq("user_id", value: uid)
-            .execute()
-
-        await MainActor.run { UploadManager.shared.finishBatch(id: sessionId) }
     }
 
     // MARK: Private helpers
@@ -1086,11 +1200,13 @@ final class SupabaseService: SupabaseServiceProtocol {
         let members: [SessionMember] = memberRows.compactMap { m in
             guard let profile = profileMap[m.userId.uuidString] else { return nil }
             return SessionMember(id: m.userId.uuidString, name: profile.name, avatarId: profile.avatarId,
-                                 joinedAt: m.joinedAt, leftAt: m.leftAt, isRolling: m.isRolling)
+                                 joinedAt: m.joinedAt, leftAt: m.leftAt, isRolling: m.isRolling,
+                                 rollingStartedAt: m.rollingStartedAt, rollingStoppedAt: m.rollingStoppedAt)
         }
 
         return Session(id: row.id.uuidString, code: row.code, name: row.name,
-                       members: members, status: status, createdAt: row.createdAt, kind: kind)
+                       members: members, status: status, createdAt: row.createdAt, kind: kind,
+                       creatorId: row.creatorId.uuidString)
     }
 
     func fetchReceivedBatches() async throws -> [ReceivedBatch] {
@@ -1098,7 +1214,7 @@ final class SupabaseService: SupabaseServiceProtocol {
 
         let rows: [DeliveryWithPhotoRow] = try await client
             .from("photo_deliveries")
-            .select("photo_id, recipient_id, sender_id, session_id, status, photos(storage_path, thumbnail_path, capture_date)")
+            .select("photo_id, recipient_id, sender_id, session_id, status, photos(storage_path, thumbnail_path, capture_date, is_video)")
             .eq("recipient_id", value: uid)
             .eq("status", value: "pending")
             .execute()
@@ -1153,6 +1269,7 @@ final class SupabaseService: SupabaseServiceProtocol {
                     url: fullURL?.absoluteString,
                     captureDate: delivery.photo.captureDate,
                     isSelected: true,
+                    isVideo: delivery.photo.isVideo,
                     thumbnailUrl: thumbURL,
                     fullResUrl: fullURL
                 ))
@@ -1194,14 +1311,34 @@ final class SupabaseService: SupabaseServiceProtocol {
                 .execute()
         }
 
-        // Best-effort Storage cleanup (pg_cron handles definitive hourly cleanup)
+        // Best-effort Storage cleanup (pg_cron handles definitive hourly cleanup).
+        // These photos rows are shared across every recipient via photo_deliveries — only
+        // delete the Storage objects for a photo once NO recipient still has a pending
+        // delivery for it, otherwise we'd rip the file out from under someone else's
+        // still-unsaved batch.
         let allPhotoIds = savedPhotoIds + dismissedPhotoIds
         guard !allPhotoIds.isEmpty else { return }
+
+        struct StillPendingRow: Decodable {
+            let photoId: UUID
+            enum CodingKeys: String, CodingKey { case photoId = "photo_id" }
+        }
+        let stillPendingRows: [StillPendingRow] = (try? await client
+            .from("photo_deliveries")
+            .select("photo_id")
+            .in("photo_id", values: allPhotoIds)
+            .eq("status", value: "pending")
+            .execute()
+            .value) ?? []
+        let stillPendingIds = Set(stillPendingRows.map { $0.photoId.uuidString })
+
+        let photoIdsToClean = allPhotoIds.filter { !stillPendingIds.contains($0) }
+        guard !photoIdsToClean.isEmpty else { return }
 
         let photosToClean: [PhotoPathRow] = (try? await client
             .from("photos")
             .select("storage_path, thumbnail_path")
-            .in("id", values: allPhotoIds)
+            .in("id", values: photoIdsToClean)
             .execute()
             .value) ?? []
 

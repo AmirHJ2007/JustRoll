@@ -18,6 +18,7 @@ struct ReceivedPhoto: Identifiable {
     let url: String?          // Supabase Storage URL — nil in mock
     let captureDate: Date
     var isSelected: Bool = true
+    var isVideo: Bool = false
     var thumbnailUrl: URL? = nil
     var fullResUrl: URL? = nil
     var mockColorSeed: Int { id.unicodeScalars.reduce(0) { $0 &+ Int($1.value) } }

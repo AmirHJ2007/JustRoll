@@ -1,3 +1,4 @@
+import AVFoundation
 import Photos
 import UIKit
 
@@ -16,6 +17,41 @@ struct PhotoExporter {
                 cont.resume(returning: image.jpegData(compressionQuality: 0.87))
             }
         }
+    }
+
+    /// Full-res video export via AVAssetExportSession, highest-quality preset, MP4 container.
+    static func exportVideo(_ asset: PHAsset) async -> Data? {
+        let options = PHVideoRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.deliveryMode = .highQualityFormat
+
+        let exportSession: AVAssetExportSession? = await withCheckedContinuation { cont in
+            PHImageManager.default().requestExportSession(
+                forVideo: asset, options: options,
+                exportPreset: AVAssetExportPresetHighestQuality
+            ) { session, _ in
+                cont.resume(returning: session)
+            }
+        }
+        guard let exportSession else { return nil }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mp4")
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+
+        // Always clean up the temp file, regardless of how we exit below.
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        let success: Bool = await withCheckedContinuation { cont in
+            exportSession.exportAsynchronously {
+                cont.resume(returning: exportSession.status == .completed)
+            }
+        }
+        guard success else { return nil }
+
+        return try? Data(contentsOf: outputURL)
     }
 
     /// Thumbnail: max 640px on long edge, JPEG at 72%.

@@ -15,9 +15,14 @@ struct SessionsView: View {
     @State private var showEmptyRoll: Bool = false
     @FocusState private var otpFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
-    init(service: any SupabaseServiceProtocol = MockSupabaseService.shared) {
+    var onRequestReview: ((String) -> Void)? = nil
+
+    init(service: any SupabaseServiceProtocol = MockSupabaseService.shared,
+         onRequestReview: ((String) -> Void)? = nil) {
         self._viewModel = State(initialValue: SessionsViewModel(service: service))
+        self.onRequestReview = onRequestReview
     }
 
     var body: some View {
@@ -62,6 +67,19 @@ struct SessionsView: View {
                 await viewModel.load()
                 withAnimation(reduceMotion ? .none : .spring(response: 0.45)) {
                     listVisible = true
+                }
+            }
+            // Reload every time the tab reappears (e.g. switching back from another tab)
+            // so member lists / rolling state don't go stale. `load()` no-ops while an
+            // existing load is in flight and the loading spinner only shows when the
+            // list is empty, so this stays silent when data is already on screen.
+            .onAppear {
+                Task { await viewModel.load() }
+            }
+            // Reload when the app returns to the foreground for the same reason.
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    Task { await viewModel.load() }
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .sessionListNeedsRefresh)) { _ in
@@ -209,11 +227,19 @@ struct SessionsView: View {
                                     showCelebration = true
                                 },
                                 onRollingStoppedEmpty: { s in
-                                    // Don't stack on top of an already-visible celebration
-                                    guard !showCelebration else { return }
+                                    // If a celebration is showing, dismiss it first rather than
+                                    // silently dropping the "Blank roll!" feedback.
+                                    if showCelebration {
+                                        withAnimation(
+                                            reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.85)
+                                        ) {
+                                            showCelebration = false
+                                        }
+                                    }
                                     emptyRollSession = s
                                     showEmptyRoll = true
-                                }
+                                },
+                                onRollingStoppedNonEmpty: { s in onRequestReview?(s.id) }
                             )
                             .padding(.horizontal, 16)
                             // Initial stagger-in appearance
