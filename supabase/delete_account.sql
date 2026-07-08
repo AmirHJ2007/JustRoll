@@ -17,6 +17,7 @@
 --                               thumbnail_path, capture_date)
 --   public.photo_deliveries   (photo_id, recipient_id, sender_id,
 --                               session_id, status, delivered_at)
+--   public.device_tokens      (token, user_id) — APNs push tokens
 --   storage bucket "photos"   — objects at
 --                               "<session_id>/<uploader_id>/<photo_id>_full.jpg"
 --                               and "..._thumb.jpg" (see uploadPhotos() in
@@ -131,6 +132,11 @@ begin
   -- 6. Friend graph, both directions
   delete from public.contacts
   where requester_id = v_uid or addressee_id = v_uid;
+
+  -- 6b. Push tokens for this user's devices. Not load-bearing (the FK
+  -- cascades from profiles), but explicit so no push can race the delete.
+  delete from public.device_tokens
+  where user_id = v_uid;
 
   -- 7. Profile row
   delete from public.profiles

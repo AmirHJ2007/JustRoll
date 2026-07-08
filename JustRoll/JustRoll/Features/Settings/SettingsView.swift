@@ -133,8 +133,10 @@ struct SettingsView: View {
                                 .cardEntrance(appear: appear, delay: 0.29, reduceMotion: reduceMotion)
                             deleteAccountCard
                                 .cardEntrance(appear: appear, delay: 0.33, reduceMotion: reduceMotion)
-                            aboutFooter
+                            legalCard
                                 .cardEntrance(appear: appear, delay: 0.37, reduceMotion: reduceMotion)
+                            aboutFooter
+                                .cardEntrance(appear: appear, delay: 0.41, reduceMotion: reduceMotion)
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
@@ -153,7 +155,12 @@ struct SettingsView: View {
                 appear = true
             }
         }
-        .onChange(of: nudgesEnabled)    { _, v in Task { try? await service.updatePreferences(nudges: v, newPhotos: newPhotosEnabled) } }
+        .onChange(of: nudgesEnabled)    { _, v in
+            // Turning the pref off should silence an already-scheduled nudge
+            // immediately; turning it on re-arms on the next start/stop roll.
+            if !v { NotificationManager.shared.cancelRollingNudge() }
+            Task { try? await service.updatePreferences(nudges: v, newPhotos: newPhotosEnabled) }
+        }
         .onChange(of: newPhotosEnabled) { _, v in Task { try? await service.updatePreferences(nudges: nudgesEnabled, newPhotos: v) } }
     }
 
@@ -444,6 +451,58 @@ struct SettingsView: View {
             deleteAccountError = error.localizedDescription
         }
         isDeletingAccount = false
+    }
+
+    // MARK: - About & legal card
+
+    /// Public URLs required by App Review (guidelines 5.1.1(i) and 1.2).
+    /// Served by GitHub Pages from this repo's /docs folder.
+    private enum LegalLinks {
+        static let privacy = URL(string: "https://amirhj2007.github.io/JustRoll/privacy.html")!
+        static let terms   = URL(string: "https://amirhj2007.github.io/JustRoll/terms.html")!
+        static let report  = URL(string: "mailto:javadibamir@gmail.com?subject=JustRoll%20report")!
+    }
+
+    private var legalCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "About & legal")
+            card {
+                legalRow(icon: "hand.raised.fill",           label: "Privacy policy",   url: LegalLinks.privacy)
+                rowDivider
+                legalRow(icon: "doc.text.fill",              label: "Terms of use",     url: LegalLinks.terms)
+                rowDivider
+                legalRow(icon: "exclamationmark.bubble.fill", label: "Report a problem", url: LegalLinks.report)
+            }
+        }
+    }
+
+    private func legalRow(icon: String, label: String, url: URL) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            UIApplication.shared.open(url)
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(Theme.Colors.accent)
+                    .frame(width: 32, height: 32)
+                    .background(Theme.Colors.accentTint)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                Text(label)
+                    .font(Theme.Typography.label)
+                    .foregroundColor(Theme.Colors.textPrimary)
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.Colors.textMuted)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .frame(minHeight: 52)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(SpringTapStyle(scaleAmount: 0.98))
     }
 
     // MARK: - About footer

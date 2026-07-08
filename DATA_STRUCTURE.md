@@ -112,6 +112,17 @@ One row per user. Created on first preference save.
 
 ---
 
+### `device_tokens`
+One row per device that registered for push. Read by the `send-push` Edge Function (service role) to deliver APNs notifications.
+
+| Column | Type | Notes |
+|---|---|---|
+| `token` | TEXT (PK) | Hex-encoded APNs device token |
+| `user_id` | UUID → profiles | Owner; cascades on account delete |
+| `updated_at` | TIMESTAMPTZ | Refreshed on each app launch |
+
+---
+
 ## Enum Types
 
 ```sql

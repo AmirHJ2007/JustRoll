@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - Root
 
@@ -62,6 +63,13 @@ struct RootTabView: View {
                     avatarId: user.avatarId
                 )
             }
+            // First call shows the permission prompt; later calls just refresh
+            // the APNs token registration.
+            NotificationManager.shared.requestAuthorizationAndRegister()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openTabFromNotification)) { note in
+            guard let tab = note.object as? Int else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { selectedTab = tab }
         }
         .task {
             async let unsentLoad: () = unsentVM.load()

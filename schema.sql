@@ -283,11 +283,9 @@ CREATE POLICY "users own their preferences"
 -- INSERT INTO storage.buckets (id, name, public)
 -- VALUES ('photos', 'photos', false);
 
--- Storage RLS (add via dashboard under Storage → Policies):
--- Allow authenticated upload:
---   bucket_id = 'photos' AND auth.uid() IS NOT NULL  → INSERT
--- Allow member download:
---   bucket_id = 'photos' AND auth.uid() IS NOT NULL  → SELECT
+-- Storage RLS: DO NOT use permissive "auth.uid() IS NOT NULL" policies —
+-- they let any signed-in user read any photo. Use the member-scoped
+-- policies in the "security hardening" migration at the end of this file.
 
 -- =============================================================
 -- Migration: nearby invite (run in Supabase SQL editor)
@@ -408,3 +406,105 @@ RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION username_available(TEXT) TO anon, authenticated;
+
+-- =============================================================
+-- Migration: push notifications (run in Supabase SQL editor)
+-- APNs device tokens, one row per device. The send-push Edge
+-- Function reads these with the service role to deliver pushes.
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS public.device_tokens (
+  token       TEXT PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  updated_at  TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS device_tokens_user_id_idx ON public.device_tokens(user_id);
+
+ALTER TABLE public.device_tokens ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "users own their device tokens" ON public.device_tokens;
+CREATE POLICY "users own their device tokens"
+  ON public.device_tokens FOR ALL
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+-- =============================================================
+-- Migration: security hardening (run in Supabase SQL editor)
+--
+-- Fixes two holes found in a pre-TestFlight security audit:
+--
+--  A. The storage bucket policies suggested earlier in this file
+--     ("auth.uid() IS NOT NULL" for SELECT/INSERT) let ANY signed-in
+--     user download ANY photo if they learn its path. Replace them
+--     with member-scoped policies below.
+--
+--     ⚠️ FIRST: Dashboard → Storage → Policies → bucket "photos":
+--     delete the old permissive SELECT / INSERT policies you created
+--     from this file's earlier instructions (whatever they're named),
+--     then run this block.
+--
+--  B. get_fully_resolved_photos() was SECURITY DEFINER with no
+--     membership check — any signed-in user could enumerate storage
+--     paths for any session. Recreated as SECURITY INVOKER so the
+--     caller's own RLS on public.photos (member-only SELECT) applies.
+--
+-- Storage path convention (see uploadPhotos in SupabaseService.swift):
+--   {session_id}/{uploader_id}/{photo_id}_full.jpg|mp4  and  ..._thumb.jpg
+-- so (storage.foldername(name))[1] = session_id
+--    (storage.foldername(name))[2] = uploader_id
+-- =============================================================
+
+DROP POLICY IF EXISTS "members read their sessions' photos" ON storage.objects;
+CREATE POLICY "members read their sessions' photos"
+  ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'photos'
+    AND EXISTS (
+      SELECT 1 FROM public.session_members sm
+      WHERE sm.session_id::text = (storage.foldername(name))[1]
+        AND sm.user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "uploaders write into their own folder" ON storage.objects;
+CREATE POLICY "uploaders write into their own folder"
+  ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'photos'
+    AND (storage.foldername(name))[2] = auth.uid()::text
+    AND EXISTS (
+      SELECT 1 FROM public.session_members sm
+      WHERE sm.session_id::text = (storage.foldername(name))[1]
+        AND sm.user_id = auth.uid()
+    )
+  );
+
+-- Member-scoped (not uploader-scoped) on purpose: deleteSessionCascade in
+-- SupabaseService.swift removes OTHER members' objects when a circle is
+-- deleted, and the client-side cleanup deletes fully-resolved photos too.
+DROP POLICY IF EXISTS "members delete their sessions' photos" ON storage.objects;
+CREATE POLICY "members delete their sessions' photos"
+  ON storage.objects FOR DELETE TO authenticated
+  USING (
+    bucket_id = 'photos'
+    AND EXISTS (
+      SELECT 1 FROM public.session_members sm
+      WHERE sm.session_id::text = (storage.foldername(name))[1]
+        AND sm.user_id = auth.uid()
+    )
+  );
+
+-- B: RLS-respecting rewrite. SECURITY INVOKER (the default) means the
+-- photos-table policy "session members can read photos" now gates it.
+CREATE OR REPLACE FUNCTION get_fully_resolved_photos(p_session_id UUID)
+RETURNS TABLE(storage_path TEXT, thumbnail_path TEXT)
+LANGUAGE sql SECURITY INVOKER AS $$
+  SELECT p.storage_path, p.thumbnail_path
+  FROM public.photos p
+  WHERE p.session_id = p_session_id
+    AND NOT EXISTS (
+      SELECT 1 FROM public.photo_deliveries d
+      WHERE d.photo_id = p.id AND d.status = 'pending'
+    );
+$$;

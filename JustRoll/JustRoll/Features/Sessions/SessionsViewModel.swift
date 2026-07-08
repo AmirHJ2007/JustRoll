@@ -49,6 +49,9 @@ final class SessionsViewModel {
         isLoading = true
         do {
             sessions = try await service.fetchSessions()
+            // Recover reminder state on every fresh load (relaunch, reinstall,
+            // roll auto-ended server-side while the app was closed).
+            syncNotifications()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -81,6 +84,8 @@ final class SessionsViewModel {
         do {
             try await service.leaveSession(sessionId: session.id)
             syncStatus(sessionId: session.id, to: .ended)
+            syncMemberRolling(sessionId: session.id, isRolling: false)
+            syncNotifications()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -90,6 +95,8 @@ final class SessionsViewModel {
         do {
             try await service.endSession(sessionId: session.id)
             syncStatus(sessionId: session.id, to: .ended)
+            syncMemberRolling(sessionId: session.id, isRolling: false)
+            syncNotifications()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -118,6 +125,7 @@ final class SessionsViewModel {
             // Starting again clears any stale rollingStoppedAt from a previous window,
             // mirroring what the server does.
             syncRollingWindow(sessionId: session.id, startedAt: now, stoppedAt: nil, clearStoppedAt: true)
+            syncNotifications()
             await requestPhotoLibraryAccessIfNeeded()
         } catch {
             errorMessage = error.localizedDescription
@@ -142,10 +150,31 @@ final class SessionsViewModel {
             if !otherStillRolling {
                 syncStatus(sessionId: session.id, to: .pending)
             }
+            syncNotifications()
             return true
         } catch {
             errorMessage = error.localizedDescription
             return false
+        }
+    }
+
+    // MARK: - Notification sync
+
+    /// True when the signed-in user is rolling in ANY circle.
+    private var isRollingAnywhere: Bool {
+        guard let uid = currentUserId else { return false }
+        return sessions.contains { $0.members.first(where: { $0.id == uid })?.isRolling == true }
+    }
+
+    /// Re-syncs the on-device reminders after anything that changes rolling
+    /// state or the unsent set: the 3 h "Still hanging out?" nudge and the
+    /// daily unsent-photos reminder.
+    private func syncNotifications() {
+        let rolling = isRollingAnywhere
+        Task {
+            let nudgesEnabled = (try? await service.fetchPreferences())?.nudges ?? true
+            NotificationManager.shared.syncRollingNudge(isRollingAnywhere: rolling, nudgesEnabled: nudgesEnabled)
+            NotificationManager.shared.syncUnsentReminder()
         }
     }
 

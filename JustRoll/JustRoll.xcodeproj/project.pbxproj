@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		AD000001 /* JustRollApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000001 /* JustRollApp.swift */; };
 		AD000002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AC000002 /* Assets.xcassets */; };
+		AD000100 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AC000049 /* PrivacyInfo.xcprivacy */; };
 		AD000010 /* RootTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000010 /* RootTabView.swift */; };
 		AD000020 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000020 /* Theme.swift */; };
 		AD000021 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000021 /* Components.swift */; };
@@ -26,6 +27,7 @@
 		AD000045 /* UploadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000045 /* UploadManager.swift */; };
 		AD000046 /* NearbySessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000046 /* NearbySessionManager.swift */; };
 		AD000098 /* RollStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000047 /* RollStore.swift */; };
+		AD000099 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000048 /* NotificationManager.swift */; };
 		AD000050 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000050 /* SessionsView.swift */; };
 		AD000051 /* SessionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000051 /* SessionsViewModel.swift */; };
 		AD000052 /* SessionRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC000052 /* SessionRowView.swift */; };
@@ -71,6 +73,7 @@
 		AC000045 /* UploadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadManager.swift; sourceTree = "<group>"; };
 		AC000046 /* NearbySessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbySessionManager.swift; sourceTree = "<group>"; };
 		AC000047 /* RollStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollStore.swift; sourceTree = "<group>"; };
+		AC000048 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		AC000050 /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
 		AC000051 /* SessionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsViewModel.swift; sourceTree = "<group>"; };
 		AC000052 /* SessionRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRowView.swift; sourceTree = "<group>"; };
@@ -86,6 +89,7 @@
 		AC000086 /* ReceivedReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceivedReviewView.swift; sourceTree = "<group>"; };
 		AC000090 /* Caveat-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = text; path = "Caveat-Medium.ttf"; sourceTree = "<group>"; };
 		AC000091 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AC000049 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AC000092 /* ShantellSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "ShantellSans-Medium.ttf"; sourceTree = "<group>"; };
 		AC000093 /* NearbyDiscoveryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyDiscoveryView.swift; sourceTree = "<group>"; };
 		AC000095 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
@@ -121,6 +125,7 @@
 				AC000001 /* JustRollApp.swift */,
 				AC000002 /* Assets.xcassets */,
 				AC000091 /* Info.plist */,
+				AC000049 /* PrivacyInfo.xcprivacy */,
 				AB000001 /* App */,
 				AB000002 /* Design */,
 				AB000003 /* Models */,
@@ -180,6 +185,7 @@
 				AC000045 /* UploadManager.swift */,
 				AC000046 /* NearbySessionManager.swift */,
 				AC000047 /* RollStore.swift */,
+				AC000048 /* NotificationManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -334,6 +340,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AD000002 /* Assets.xcassets in Resources */,
+				AD000100 /* PrivacyInfo.xcprivacy in Resources */,
 				AD000090 /* Caveat-Medium.ttf in Resources */,
 				AD000092 /* ShantellSans-Medium.ttf in Resources */,
 			);
@@ -364,6 +371,7 @@
 				AD000045 /* UploadManager.swift in Sources */,
 				AD000046 /* NearbySessionManager.swift in Sources */,
 				AD000098 /* RollStore.swift in Sources */,
+				AD000099 /* NotificationManager.swift in Sources */,
 				AD000050 /* SessionsView.swift in Sources */,
 				AD000051 /* SessionsViewModel.swift in Sources */,
 				AD000052 /* SessionRowView.swift in Sources */,
@@ -504,6 +512,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = JustRoll/JustRoll.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
@@ -533,6 +542,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = JustRoll/JustRoll.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";

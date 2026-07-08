@@ -1,59 +1,6 @@
 import SwiftUI
 import Photos
 
-// MARK: - CountdownChip
-
-struct CountdownChip: View {
-    let expiresAt: Date
-    @State private var pulsing = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var timeLeft: TimeInterval { expiresAt.timeIntervalSinceNow }
-    private var isUrgent: Bool { timeLeft > 0 && timeLeft < 24 * 3600 }
-    private var isExpired: Bool { timeLeft <= 0 }
-
-    private var label: String {
-        if isExpired { return "Expired" }
-        let days = Int(timeLeft / 86400)
-        if days >= 1 { return "\(days)d left" }
-        let hours = Int(timeLeft / 3600)
-        if hours >= 1 { return "\(hours)h left" }
-        let mins = max(1, Int(timeLeft / 60))
-        return "\(mins)m left"
-    }
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "clock")
-                .font(.system(size: 9, weight: .bold))
-            Text(label)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-        }
-        .foregroundColor(isUrgent || isExpired ? Theme.Colors.danger : Theme.Colors.accent)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 4)
-        .background(
-            (isUrgent || isExpired)
-                ? Theme.Colors.danger.opacity(0.12)
-                : Theme.Colors.accentTint
-        )
-        .clipShape(Capsule())
-        .overlay(
-            Capsule().stroke(
-                (isUrgent || isExpired) ? Theme.Colors.danger.opacity(0.35) : Theme.Colors.accent.opacity(0.25),
-                lineWidth: 0.5
-            )
-        )
-        .scaleEffect(pulsing ? 1.05 : 1)
-        .onAppear {
-            guard isUrgent && !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
-                pulsing = true
-            }
-        }
-    }
-}
-
 // MARK: - FannedPhotoStack
 // Shows up to 3 "photo prints" fanned like a pile, most recent on top.
 
@@ -191,6 +138,8 @@ private struct FannedPhotoFrame: View {
 struct UnsentCard: View {
     let batch: PendingBatch
     let onReview: () -> Void
+    var onDiscard: () -> Void = {}
+    @State private var showDiscardConfirm = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var uploadProgress: Double? { UploadManager.shared.progress[batch.id] }
@@ -213,7 +162,38 @@ struct UnsentCard: View {
             RoundedRectangle(cornerRadius: 20)
                 .stroke(Theme.Colors.border, lineWidth: 0.5)
         )
+        .overlay(alignment: .topTrailing) { discardButton }
+        .confirmationDialog(
+            "Don't send this roll?",
+            isPresented: $showDiscardConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Don't send", role: .destructive) { onDiscard() }
+            Button("Keep it", role: .cancel) {}
+        } message: {
+            Text("These shots won't be shared with anyone, and this card goes away for good.")
+        }
         .allowsHitTesting(!isUploading)
+    }
+
+    // MARK: Discard ("don't send") button
+
+    private var discardButton: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            showDiscardConfirm = true
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(Theme.Colors.textMuted)
+                .padding(8)
+                .background(Theme.Colors.surface)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Theme.Colors.border, lineWidth: 0.5))
+        }
+        .buttonStyle(SpringTapStyle(scaleAmount: 0.88))
+        .padding(10)
+        .accessibilityLabel("Don't send this roll")
     }
 
     // MARK: Hero — fanned photo stack + session metadata
@@ -261,8 +241,6 @@ struct UnsentCard: View {
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(Theme.Colors.textSecondary)
                 }
-
-                CountdownChip(expiresAt: batch.expiresAt)
             }
 
             Spacer(minLength: 0)
@@ -350,16 +328,18 @@ struct UnsentCard: View {
     // MARK: Helpers
 
     private var windowString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        let dateStr = formatter.string(from: batch.rollingStartedAt)
-        let duration = batch.rollingStoppedAt.timeIntervalSince(batch.rollingStartedAt)
-        let hours = Int(duration) / 3600
-        let minutes = (Int(duration) % 3600) / 60
-        if hours > 0 {
-            return "\(dateStr) · \(hours)h \(minutes)m"
+        let dayFmt = DateFormatter()
+        dayFmt.dateFormat = "MMM d"
+        let timeFmt = DateFormatter()
+        timeFmt.dateStyle = .none
+        timeFmt.timeStyle = .short
+        let start = timeFmt.string(from: batch.rollingStartedAt)
+        let end   = timeFmt.string(from: batch.rollingStoppedAt)
+        if Calendar.current.isDate(batch.rollingStartedAt, inSameDayAs: batch.rollingStoppedAt) {
+            return "\(dayFmt.string(from: batch.rollingStartedAt)) · \(start) – \(end)"
         }
-        return "\(dateStr) · \(max(1, minutes))m"
+        // Roll crossed midnight — show both days so the window reads right.
+        return "\(dayFmt.string(from: batch.rollingStartedAt)) \(start) – \(dayFmt.string(from: batch.rollingStoppedAt)) \(end)"
     }
 
     private var recipientLabel: String {
@@ -434,22 +414,31 @@ struct UnsentView: View {
                         recipientNames: batch.recipientNames,
                         recipientAvatarIds: batch.recipientAvatarIds,
                         rollingWindow: (start: batch.rollingStartedAt, end: batch.rollingStoppedAt),
-                        batchId: batch.id
-                    ) { selected in
-                        Task {
-                            await viewModel.sendPhotos(selected, from: batch)
-                            if viewModel.errorMessage != nil {
-                                // ReviewPhotoGridView already reverted to review and is
-                                // showing its own "Couldn't send" alert — stay put so the
-                                // user can retry, and don't also pop the generic alert.
-                                viewModel.errorMessage = nil
-                            } else {
-                                // Let the film-developing + success animation finish before popping
-                                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                                showingReview = false
+                        batchId: batch.id,
+                        onSend: { selected in
+                            Task {
+                                await viewModel.sendPhotos(selected, from: batch)
+                                if viewModel.errorMessage != nil {
+                                    // ReviewPhotoGridView already reverted to review and is
+                                    // showing its own "Couldn't send" alert — stay put so the
+                                    // user can retry, and don't also pop the generic alert.
+                                    viewModel.errorMessage = nil
+                                } else {
+                                    // Let the film-developing + success animation finish before popping
+                                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                    showingReview = false
+                                }
+                            }
+                        },
+                        onDiscard: {
+                            Task {
+                                await viewModel.discardBatch(batch)
+                                // On failure the view model's alert explains; stay on the
+                                // review screen so nothing silently disappears.
+                                if viewModel.errorMessage == nil { showingReview = false }
                             }
                         }
-                    }
+                    )
                 }
             }
             .alert("Something went wrong", isPresented: Binding(
@@ -487,10 +476,16 @@ struct UnsentView: View {
                 Spacer().frame(height: 8)
 
                 ForEach(Array(viewModel.pendingBatches.enumerated()), id: \.element.id) { idx, batch in
-                    UnsentCard(batch: batch) {
-                        reviewBatch = batch
-                        showingReview = true
-                    }
+                    UnsentCard(
+                        batch: batch,
+                        onReview: {
+                            reviewBatch = batch
+                            showingReview = true
+                        },
+                        onDiscard: {
+                            Task { await viewModel.discardBatch(batch) }
+                        }
+                    )
                     .padding(.horizontal, 16)
                     .opacity(listVisible ? 1 : 0)
                     .offset(y: listVisible ? 0 : 28)

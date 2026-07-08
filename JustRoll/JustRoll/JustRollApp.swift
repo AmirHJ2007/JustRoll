@@ -1,10 +1,32 @@
 import SwiftUI
 import AVFoundation
 import UIKit
+import UserNotifications
 
-// MARK: - AppDelegate (background URL session support)
+// MARK: - AppDelegate (background URL session + push registration)
 
 class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Delegate must be set before launch finishes so a tap on a push that
+        // launched the app is still routed to the right tab.
+        UNUserNotificationCenter.current().delegate = NotificationManager.shared
+        return true
+    }
+
+    func application(_ application: UIApplication,
+                     didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let hexToken = deviceToken.map { String(format: "%02x", $0) }.joined()
+        Task { try? await SupabaseService.shared.registerDeviceToken(hexToken) }
+    }
+
+    func application(_ application: UIApplication,
+                     didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        // Expected on simulators / without the push entitlement — local
+        // notifications (nudge, unsent reminder) still work regardless.
+        print("APNs registration failed: \(error.localizedDescription)")
+    }
+
     func application(_ application: UIApplication,
                      handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {

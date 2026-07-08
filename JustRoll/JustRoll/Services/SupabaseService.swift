@@ -348,6 +348,8 @@ final class SupabaseService: SupabaseServiceProtocol {
     }
 
     func signOut() async throws {
+        // Delete this device's push token first — needs the still-authed client.
+        await unregisterDeviceToken()
         try await client.auth.signOut()
         currentUser = nil
     }
@@ -356,6 +358,8 @@ final class SupabaseService: SupabaseServiceProtocol {
         // Server-side RPC does the actual work: erases photos/deliveries/contacts,
         // removes the user from every session_members row (every circle), then
         // deletes the profile and the auth user. See supabase/delete_account.sql.
+        // (That includes device_tokens — only the local copy needs clearing here.)
+        UserDefaults.standard.removeObject(forKey: Self.deviceTokenKey)
         try await client.rpc("delete_account").execute()
 
         // The auth user no longer exists server-side at this point, so signOut()
@@ -530,6 +534,10 @@ final class SupabaseService: SupabaseServiceProtocol {
             .insert(MemberInsert(sessionId: sessionRow.id.uuidString, userId: uid))
             .execute()
 
+        // Tell everyone already on the roll that this user joined.
+        let joinedSessionId = sessionRow.id.uuidString
+        Task { await self.notifyMemberJoined(sessionId: joinedSessionId, joinerName: nil) }
+
         return try await fetchSessionById(sessionRow.id.uuidString)
     }
 
@@ -634,6 +642,21 @@ final class SupabaseService: SupabaseServiceProtocol {
         try await client
             .rpc("invite_to_session", params: Params(p_session_id: sessionId, p_username: username))
             .execute()
+
+        // Notify the rest of the circle. The caller here is the creator, not
+        // the joiner, so pass the invited user's display name along (the edge
+        // function only honors it if that name belongs to an actual member).
+        Task {
+            struct NameRow: Decodable { let name: String }
+            let rows: [NameRow] = (try? await self.client
+                .from("profiles")
+                .select("name")
+                .eq("username", value: username)
+                .execute()
+                .value) ?? []
+            guard let joinerName = rows.first?.name else { return }
+            await self.notifyMemberJoined(sessionId: sessionId, joinerName: joinerName)
+        }
     }
 
     func startRolling(sessionId: String) async throws {
@@ -1136,13 +1159,117 @@ final class SupabaseService: SupabaseServiceProtocol {
                 }
             }
 
+            // The roll's window dates the memory in the push ("for today" /
+            // "yesterday" / …). Read it before the roll is forgotten below.
+            let rollStoppedAt = RollStore.all().first(where: { $0.id == rollId })?.stoppedAt ?? Date()
+
             RollStore.remove(id: rollId)
+
+            if !recipientIds.isEmpty && !photos.isEmpty {
+                let dateLabel = NotificationManager.relativeDayLabel(for: rollStoppedAt)
+                Task { await self.notifyMemorySent(sessionId: sessionId, dateLabel: dateLabel) }
+            }
 
             await MainActor.run { UploadManager.shared.finishBatch(id: rollId) }
         } catch {
             await MainActor.run { UploadManager.shared.cancelBatch(id: rollId) }
             throw error
         }
+    }
+
+    // MARK: Push notifications
+
+    private static let deviceTokenKey = "apnsDeviceToken"
+
+    /// Store this device's APNs token so the send-push Edge Function can
+    /// reach the signed-in user. Called from the AppDelegate whenever iOS
+    /// hands us a (possibly refreshed) token.
+    func registerDeviceToken(_ token: String) async throws {
+        let uid = try currentUserId()
+        struct TokenUpsert: Encodable {
+            let token: String
+            let userId: String
+            enum CodingKeys: String, CodingKey {
+                case token
+                case userId = "user_id"
+            }
+        }
+        try await client
+            .from("device_tokens")
+            .upsert(TokenUpsert(token: token, userId: uid))
+            .execute()
+        UserDefaults.standard.set(token, forKey: Self.deviceTokenKey)
+    }
+
+    /// Remove this device's token so a signed-out device stops getting pushes.
+    private func unregisterDeviceToken() async {
+        guard let token = UserDefaults.standard.string(forKey: Self.deviceTokenKey) else { return }
+        try? await client
+            .from("device_tokens")
+            .delete()
+            .eq("token", value: token)
+            .execute()
+        UserDefaults.standard.removeObject(forKey: Self.deviceTokenKey)
+    }
+
+    // Invocations of the send-push Edge Function. The function verifies the
+    // caller is a session member and derives the recipient list server-side;
+    // these are fire-and-forget so a push failure never breaks the main flow.
+    private struct PushEventBody: Encodable {
+        let type: String
+        let sessionId: String
+        var dateLabel: String? = nil
+        var joinerName: String? = nil
+        enum CodingKeys: String, CodingKey {
+            case type
+            case sessionId  = "session_id"
+            case dateLabel  = "date_label"
+            case joinerName = "joiner_name"
+        }
+    }
+
+    private func notifyMemorySent(sessionId: String, dateLabel: String) async {
+        try? await client.functions.invoke(
+            "send-push",
+            options: FunctionInvokeOptions(
+                body: PushEventBody(type: "memory", sessionId: sessionId, dateLabel: dateLabel))
+        )
+    }
+
+    private func notifyMemberJoined(sessionId: String, joinerName: String?) async {
+        try? await client.functions.invoke(
+            "send-push",
+            options: FunctionInvokeOptions(
+                body: PushEventBody(type: "member_joined", sessionId: sessionId, joinerName: joinerName))
+        )
+    }
+
+    func discardBatch(sessionId: String, rollId: String) async throws {
+        let uid = try currentUserId()
+
+        // Mark the server's rolling window consumed so fetchPendingBatches
+        // doesn't resurrect this card on the next load — but only if the
+        // server row still describes THIS roll; with per-roll local cards it
+        // may already describe a newer one. Mirrors the guard in uploadPhotos.
+        if let startedAt = RollStore.all().first(where: { $0.id == rollId })?.startedAt {
+            let currentRows: [SessionMemberRow] = try await client
+                .from("session_members")
+                .select()
+                .eq("session_id", value: sessionId)
+                .eq("user_id", value: uid)
+                .execute()
+                .value
+            if currentRows.first?.rollingStartedAt == startedAt {
+                try await client
+                    .from("session_members")
+                    .update(["batch_sent": true])
+                    .eq("session_id", value: sessionId)
+                    .eq("user_id", value: uid)
+                    .execute()
+            }
+        }
+
+        RollStore.remove(id: rollId)
     }
 
     // MARK: Private helpers

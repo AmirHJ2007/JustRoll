@@ -285,6 +285,13 @@ final class MockSupabaseService: SupabaseServiceProtocol {
         }
     }
 
+    func discardBatch(sessionId: String, rollId: String) async throws {
+        try await mockDelay(0.3)
+        batches.removeAll { $0.id == rollId }
+        dynamicBatches.removeAll { $0.id == rollId }
+        RollStore.remove(id: rollId)
+    }
+
     func fetchReceivedBatches() async throws -> [ReceivedBatch] {
         try await mockDelay()
         return receivedBatches

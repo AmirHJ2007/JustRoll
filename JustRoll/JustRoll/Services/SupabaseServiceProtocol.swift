@@ -44,6 +44,9 @@ protocol SupabaseServiceProtocol: AnyObject {
     func fetchPendingPhotos() async throws -> [PendingPhoto]
     func fetchPendingBatches() async throws -> [PendingBatch]
     func uploadPhotos(_ photos: [PendingPhoto], sessionId: String, rollId: String) async throws
+    /// Throw away an unsent roll without sending anything — forgets it locally
+    /// AND marks it consumed server-side so it isn't re-discovered on next load.
+    func discardBatch(sessionId: String, rollId: String) async throws
     func fetchReceivedBatches() async throws -> [ReceivedBatch]
     func markBatchSaved(batchId: String, savedPhotoIds: [String], dismissedPhotoIds: [String]) async throws
 }

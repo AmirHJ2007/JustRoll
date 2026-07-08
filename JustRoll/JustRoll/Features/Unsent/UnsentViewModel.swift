@@ -31,6 +31,9 @@ final class UnsentViewModel {
         isLoading = true
         do {
             pendingBatches = try await service.fetchPendingBatches()
+            // fetchPendingBatches mutates RollStore (discovers rolls from other
+            // devices, prunes expired ones) — keep the daily reminder in step.
+            NotificationManager.shared.syncUnsentReminder()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -54,11 +57,24 @@ final class UnsentViewModel {
                     pendingBatches.remove(at: idx)
                 }
             }
+            NotificationManager.shared.syncUnsentReminder()
         } catch {
             errorMessage = error.localizedDescription
             // The card would otherwise stay stuck showing "Uploading" forever.
             UploadManager.shared.cancelBatch(id: batch.id)
         }
         isSending = false
+    }
+
+    /// Throw the whole card away without sending anything. Nothing uploads,
+    /// nobody receives — the roll is simply forgotten (locally and server-side).
+    func discardBatch(_ batch: PendingBatch) async {
+        do {
+            try await service.discardBatch(sessionId: batch.sessionId, rollId: batch.id)
+            pendingBatches.removeAll { $0.id == batch.id }
+            NotificationManager.shared.syncUnsentReminder()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }

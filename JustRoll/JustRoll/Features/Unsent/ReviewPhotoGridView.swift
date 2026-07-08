@@ -15,6 +15,9 @@ struct ReviewPhotoGridView: View {
     /// The roll's unique id (PendingBatch.id) — keys all UploadManager progress/completed lookups.
     let batchId: String
     let onSend: ([PendingPhoto]) -> Void
+    /// Optional "send nothing" path — discards the whole batch. When nil the
+    /// affordance is hidden (e.g. previews / callers without discard support).
+    let onDiscard: (() -> Void)?
 
     init(
         photos: [PendingPhoto],
@@ -24,7 +27,8 @@ struct ReviewPhotoGridView: View {
         recipientAvatarIds: [Int?] = [],
         rollingWindow: (start: Date, end: Date)? = nil,
         batchId: String = "",
-        onSend: @escaping ([PendingPhoto]) -> Void
+        onSend: @escaping ([PendingPhoto]) -> Void,
+        onDiscard: (() -> Void)? = nil
     ) {
         self._photos = State(initialValue: photos)
         self.isSending = isSending
@@ -34,6 +38,7 @@ struct ReviewPhotoGridView: View {
         self.rollingWindow = rollingWindow
         self.batchId = batchId
         self.onSend = onSend
+        self.onDiscard = onDiscard
     }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 7), count: 3)
@@ -65,6 +70,8 @@ struct ReviewPhotoGridView: View {
     @State private var overlayOpacity: Double = 1
     /// Drives the "Couldn't send" alert shown when a send fails mid-developing.
     @State private var showSendFailedAlert = false
+    /// Drives the "Don't send any" confirmation dialog.
+    @State private var showDiscardConfirm = false
 
     private var displayProgress: Double {
         max(UploadManager.shared.progress[batchId] ?? 0, forcedProgress)
@@ -169,6 +176,19 @@ struct ReviewPhotoGridView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Your shots are still here — check your connection and try again.")
+        }
+        .confirmationDialog(
+            "Don't send this roll?",
+            isPresented: $showDiscardConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Don't send", role: .destructive) {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                onDiscard?()
+            }
+            Button("Keep it", role: .cancel) {}
+        } message: {
+            Text("These shots won't be shared with anyone, and this card goes away for good.")
         }
     }
 
@@ -300,7 +320,21 @@ struct ReviewPhotoGridView: View {
                 Text("of \(photos.count) \(photos.count == 1 ? "shot" : "shots") selected")
                     .font(.system(size: 13, weight: .regular, design: .rounded))
                     .foregroundColor(Theme.Colors.textSecondary)
+
+                if onDiscard != nil {
+                    Spacer(minLength: 8)
+                    Button {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        showDiscardConfirm = true
+                    } label: {
+                        Text("Don't send any")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(Theme.Colors.danger)
+                    }
+                    .disabled(uploadPhase != .review || isExitingToLater)
+                }
             }
+            .frame(maxWidth: .infinity)
 
             HStack(spacing: 10) {
                 Button {

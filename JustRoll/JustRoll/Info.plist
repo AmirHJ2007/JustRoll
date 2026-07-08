@@ -31,7 +31,7 @@
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>JustRoll reads photos you took during a roll to share them with the people who were there.</string>
+	<string>JustRoll needs full library access to automatically find the photos taken during your roll's time window — a photo picker can't filter by capture time. You review every shot and nothing is shared without your approval.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>JustRoll saves received photos to your camera roll.</string>
 	<key>NSLocalNetworkUsageDescription</key>
